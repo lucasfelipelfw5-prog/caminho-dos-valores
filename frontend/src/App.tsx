@@ -959,17 +959,16 @@ export default function App() {
     dificuldade: "normal",
   });
 
-  useEffect(() => {
-const newSocket = io(SOCKET_URL, { transports: ["websocket"] });
-(window as any).socket = newSocket;
-setSocket(newSocket);
+useEffect(() => {
+  const newSocket = io(SOCKET_URL, { transports: ["websocket"] });
+  (window as any).socket = newSocket;
+  setSocket(newSocket);
 
-    newSocket.on("sala-criada", (data: { salaId: string; criadorId: string; configuracao: ConfiguracaoSala }) => {
-      setMinhaSalaId(data.salaId);
-      setIsCriador(true);
-      setConfiguracao(data.configuracao);
-      setTela("aguardando");
-    });
+  console.log("Socket conectado:", newSocket.connected);
+  console.log("Socket ID:", newSocket.id);
+  console.log("Socket URL:", SOCKET_URL);
+
+  newSocket.on("sala-criada", (data: { salaId: string; criadorId: string; configuracao: ConfiguracaoSala }) => {
 
     newSocket.on("entrou-sala", (estado: SalaEstado) => {
       setJogadores(estado.jogadores);
