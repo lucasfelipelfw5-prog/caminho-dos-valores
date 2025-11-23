@@ -24,9 +24,9 @@ const App: React.FC = () => {
   const [screen, setScreen] = useState<Screen>('splash');
   const [playerName, setPlayerName] = useState('');
   const [rooms, setRooms] = useState<Room[]>([
-    { id: '1', name: 'Sala do Lucas', players: 2, maxPlayers: 4, difficulty: 'médio' },
-    { id: '2', name: 'Sala dos Amigos', players: 1, maxPlayers: 6, difficulty: 'fácil' },
-    { id: '3', name: 'Desafio Extremo', players: 3, maxPlayers: 4, difficulty: 'difícil' },
+    { id: '1', name: 'Sala 1', players: 1, maxPlayers: 4, difficulty: 'fácil' },
+    { id: '2', name: 'Sala 2', players: 1, maxPlayers: 5, difficulty: 'médio' },
+    { id: '3', name: 'Sala 3', players: 1, maxPlayers: 6, difficulty: 'difícil' },
   ]);
   const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
   const [currentDilema, setCurrentDilema] = useState<Dilema | null>({
@@ -179,7 +179,7 @@ const App: React.FC = () => {
             alignItems: 'center',
             gap: '10px',
           }}>
-            <img src="/icon_lantern.png" alt="Casos" style={{
+            <img src="/icon_lantern.png" alt="Etica" style={{
               width: '80px',
               height: '80px',
               objectFit: 'contain',
@@ -189,7 +189,7 @@ const App: React.FC = () => {
               fontSize: '14px',
               fontWeight: 'bold',
               fontFamily: 'Poppins, sans-serif',
-            }}>Casos</span>
+            }}>Etica</span>
           </div>
 
           <div style={{
@@ -198,7 +198,7 @@ const App: React.FC = () => {
             alignItems: 'center',
             gap: '10px',
           }}>
-            <img src="/icon_balance.png" alt="Deie Moral" style={{
+            <img src="/icon_balance.png" alt="Valores" style={{
               width: '80px',
               height: '80px',
               objectFit: 'contain',
@@ -208,7 +208,7 @@ const App: React.FC = () => {
               fontSize: '14px',
               fontWeight: 'bold',
               fontFamily: 'Poppins, sans-serif',
-            }}>Deie Moral</span>
+            }}>Valores</span>
           </div>
 
           <div style={{
@@ -217,7 +217,7 @@ const App: React.FC = () => {
             alignItems: 'center',
             gap: '10px',
           }}>
-            <img src="/icon_heart.png" alt="Emocional" style={{
+            <img src="/icon_heart.png" alt="Cultura" style={{
               width: '80px',
               height: '80px',
               objectFit: 'contain',
@@ -227,7 +227,7 @@ const App: React.FC = () => {
               fontSize: '14px',
               fontWeight: 'bold',
               fontFamily: 'Poppins, sans-serif',
-            }}>Emocional</span>
+            }}>Cultura</span>
           </div>
         </div>
 
