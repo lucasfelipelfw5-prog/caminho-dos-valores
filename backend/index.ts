@@ -1,23 +1,10 @@
-import express from 'express';
-import http from 'http';
-import { Server as SocketIOServer } from 'socket.io';
-import cors from 'cors';
+import React, { useState, useEffect } from 'react';
+import { io, Socket } from 'socket.io-client';
 
-const app = express();
-const server = http.createServer(app);
-const io = new SocketIOServer(server, {
-  cors: {
-    origin: ['http://localhost:5173', 'https://caminho-dos-valores.vercel.app'],
-    methods: ['GET', 'POST'],
-  },
-});
+type Screen = 'splash' | 'menu' | 'lobby' | 'game' | 'analysis' | 'end';
 
-app.use(cors());
-app.use(express.json());
-
-// ============ TYPES ============
 interface EthicalAnalysis {
-  framework: 'utilitarismo' | 'deontologia' | 'virtude' | 'consequencialismo' | 'relativismo';
+  framework: string;
   score: number;
   explanation: string;
 }
@@ -29,12 +16,12 @@ interface ValueAnalysis {
 }
 
 interface CulturalAnalysis {
-  impact: 'positivo' | 'neutro' | 'negativo';
+  impact: string;
   explanation: string;
   organizationalRisk: number;
 }
 
-interface OptionAnalysis {
+interface Option {
   id: string;
   text: string;
   ethicalAnalysis: EthicalAnalysis[];
@@ -49,433 +36,545 @@ interface Dilema {
   title: string;
   description: string;
   context: string;
-  category: 'caso' | 'deie_moral' | 'emocional';
-  difficulty: 'fácil' | 'médio' | 'difícil';
-  options: OptionAnalysis[];
+  category: string;
+  difficulty: string;
+  options: Option[];
   learningObjective: string;
-}
-
-interface Player {
-  id: string;
-  name: string;
-  socketId: string;
-  score: number;
-  answers: PlayerAnswer[];
-  ethicalProfile: EthicalProfile;
-}
-
-interface PlayerAnswer {
-  dilemaId: string;
-  optionId: string;
-  timestamp: Date;
-  analysis: OptionAnalysis;
-}
-
-interface EthicalProfile {
-  utilitarismo: number;
-  deontologia: number;
-  virtude: number;
-  consequencialismo: number;
-  relativismo: number;
-  dominantFramework: string;
 }
 
 interface Room {
   id: string;
   name: string;
-  creator: string;
-  creatorSocketId: string;
-  players: Player[];
+  players: Array<{ name: string; score: number }>;
   maxPlayers: number;
-  difficulty: 'fácil' | 'médio' | 'difícil';
-  status: 'waiting' | 'playing' | 'finished';
-  currentDilemaIndex: number;
-  createdAt: Date;
+  difficulty: string;
+  status: string;
 }
 
-interface GameResponse {
-  roomId: string;
-  playerId: string;
-  playerName: string;
-  dilemaId: string;
-  optionId: string;
-  analysis: OptionAnalysis;
-  timestamp: Date;
-}
-
-// ============ GERADOR DE DILEMAS ============
-const corporateValues = [
-  'Honestidade',
-  'Justiça',
-  'Compaixão',
-  'Responsabilidade',
-  'Integridade',
-  'Coragem',
-  'Respeito',
-  'Confiança',
-  'Inovação',
-  'Sustentabilidade',
-];
-
-const themes = [
-  { name: 'Fraude Corporativa', category: 'caso', difficulty: 'difícil' },
-  { name: 'Discriminação', category: 'emocional', difficulty: 'médio' },
-  { name: 'Privacidade vs Segurança', category: 'caso', difficulty: 'difícil' },
-  { name: 'Sustentabilidade vs Lucro', category: 'caso', difficulty: 'difícil' },
-  { name: 'Assédio Moral', category: 'emocional', difficulty: 'médio' },
-  { name: 'Nepotismo', category: 'caso', difficulty: 'médio' },
-  { name: 'Corrupção Sistêmica', category: 'deie_moral', difficulty: 'difícil' },
-  { name: 'Whistleblowing', category: 'deie_moral', difficulty: 'difícil' },
-  { name: 'Conflito de Interesse', category: 'deie_moral', difficulty: 'médio' },
-  { name: 'Segredo Profissional', category: 'deie_moral', difficulty: 'difícil' },
-  { name: 'Experimentação Animal', category: 'deie_moral', difficulty: 'difícil' },
-  { name: 'Eutanásia', category: 'emocional', difficulty: 'difícil' },
-  { name: 'Educação vs Trabalho', category: 'emocional', difficulty: 'difícil' },
-  { name: 'Tecnologia Destrutiva', category: 'deie_moral', difficulty: 'difícil' },
-  { name: 'Justiça vs Misericórdia', category: 'emocional', difficulty: 'difícil' },
-  { name: 'Doação de Órgãos', category: 'deie_moral', difficulty: 'difícil' },
-  { name: 'Imigração', category: 'caso', difficulty: 'difícil' },
-  { name: 'Pena de Morte', category: 'deie_moral', difficulty: 'difícil' },
-  { name: 'Pesquisa Genética', category: 'deie_moral', difficulty: 'difícil' },
-  { name: 'Inteligência Artificial', category: 'caso', difficulty: 'difícil' },
-  { name: 'Desperdício vs Pobreza', category: 'emocional', difficulty: 'médio' },
-  { name: 'Mentira Branca', category: 'emocional', difficulty: 'fácil' },
-  { name: 'Roubo por Necessidade', category: 'emocional', difficulty: 'difícil' },
-  { name: 'Segurança de Dados', category: 'caso', difficulty: 'médio' },
-  { name: 'Competição Desleal', category: 'caso', difficulty: 'médio' },
-  { name: 'Assédio Sexual', category: 'emocional', difficulty: 'difícil' },
-  { name: 'Despedimento Injusto', category: 'caso', difficulty: 'médio' },
-  { name: 'Qualidade vs Custo', category: 'caso', difficulty: 'médio' },
-  { name: 'Confidencialidade', category: 'caso', difficulty: 'médio' },
-  { name: 'Diversidade e Inclusão', category: 'emocional', difficulty: 'médio' },
-];
-
-const optionTemplates = [
-  {
-    text: 'Agir com total integridade e transparência',
-    ethicalScores: { utilitarismo: 75, deontologia: 95, virtude: 90, consequencialismo: 70, relativismo: 70 },
-    valueAlignments: { Honestidade: 100, Justiça: 90, Integridade: 100, Coragem: 85, Respeito: 85, Compaixão: 70, Responsabilidade: 90, Confiança: 85, Inovação: 60, Sustentabilidade: 70 },
-    culturalImpact: 'positivo',
-    feedback: 'Você escolheu a abordagem mais ética, priorizando integridade acima de tudo. Isso constrói confiança organizacional a longo prazo.',
-    score: 90,
-  },
-  {
-    text: 'Buscar uma solução intermediária que equilibre interesses',
-    ethicalScores: { utilitarismo: 80, deontologia: 70, virtude: 80, consequencialismo: 75, relativismo: 80 },
-    valueAlignments: { Justiça: 80, Compaixão: 80, Responsabilidade: 85, Inovação: 75, Sustentabilidade: 75, Honestidade: 70, Integridade: 75, Coragem: 70, Respeito: 80, Confiança: 75 },
-    culturalImpact: 'positivo',
-    feedback: 'Você buscou um equilíbrio pragmático que respeita múltiplas perspectivas. Bom para resolução de conflitos.',
-    score: 75,
-  },
-  {
-    text: 'Priorizar interesse pessoal ou organizacional imediato',
-    ethicalScores: { utilitarismo: 40, deontologia: 20, virtude: 30, consequencialismo: 35, relativismo: 45 },
-    valueAlignments: { Honestidade: -60, Justiça: -70, Integridade: -80, Coragem: -80, Respeito: -60, Compaixão: -70, Responsabilidade: -75, Confiança: -85, Inovação: -40, Sustentabilidade: -60 },
-    culturalImpact: 'negativo',
-    feedback: 'Esta escolha compromete princípios éticos fundamentais. Pode gerar riscos legais e reputacionais graves.',
-    score: 25,
-  },
-  {
-    text: 'Consultar stakeholders e tomar decisão coletiva',
-    ethicalScores: { utilitarismo: 85, deontologia: 80, virtude: 85, consequencialismo: 80, relativismo: 85 },
-    valueAlignments: { Respeito: 95, Confiança: 90, Justiça: 85, Responsabilidade: 90, Inovação: 75, Honestidade: 85, Integridade: 85, Coragem: 75, Compaixão: 85, Sustentabilidade: 80 },
-    culturalImpact: 'positivo',
-    feedback: 'Você envolveu outros na decisão, demonstrando liderança colaborativa. Excelente para construir consenso.',
-    score: 85,
-  },
-];
-
-function generateDilemas(): Dilema[] {
-  const dilemas: Dilema[] = [];
-
-  themes.forEach((theme, index) => {
-    const dilema: Dilema = {
-      id: String(index + 1),
-      title: theme.name,
-      description: `Você enfrenta um dilema relacionado a ${theme.name.toLowerCase()}. Qual é sua abordagem?`,
-      context: `Cenário real de ${theme.name.toLowerCase()} em ambientes corporativos modernos`,
-      category: theme.category as 'caso' | 'deie_moral' | 'emocional',
-      difficulty: theme.difficulty as 'fácil' | 'médio' | 'difícil',
-      learningObjective: `Entender implicações éticas de ${theme.name.toLowerCase()}`,
-      options: optionTemplates.map((template, optIndex) => {
-        const ethicalAnalysis: EthicalAnalysis[] = [
-          { framework: 'utilitarismo', score: template.ethicalScores.utilitarismo, explanation: 'Maximiza bem-estar geral considerando consequências' },
-          { framework: 'deontologia', score: template.ethicalScores.deontologia, explanation: 'Segue deveres e princípios morais absolutos' },
-          { framework: 'virtude', score: template.ethicalScores.virtude, explanation: 'Desenvolve caráter e excelência moral' },
-          { framework: 'consequencialismo', score: template.ethicalScores.consequencialismo, explanation: 'Avalia ações pelas consequências resultantes' },
-          { framework: 'relativismo', score: template.ethicalScores.relativismo, explanation: 'Considera contexto cultural e situacional' },
-        ];
-
-        const valueAnalysis: ValueAnalysis[] = corporateValues.map(value => ({
-          value,
-          alignment: template.valueAlignments[value as keyof typeof template.valueAlignments] || 0,
-          explanation: `Alinhamento com valor corporativo de ${value.toLowerCase()}`,
-        }));
-
-        return {
-          id: String(optIndex + 1),
-          text: template.text,
-          ethicalAnalysis,
-          valueAnalysis,
-          culturalAnalysis: {
-            impact: template.culturalImpact as 'positivo' | 'neutro' | 'negativo',
-            explanation: `Impacto ${template.culturalImpact} na cultura organizacional`,
-            organizationalRisk: template.culturalImpact === 'positivo' ? 20 : template.culturalImpact === 'neutro' ? 50 : 85,
-          },
-          feedback: template.feedback,
-          overallScore: template.score,
-        };
-      }),
-    };
-
-    dilemas.push(dilema);
-  });
-
-  return dilemas;
-}
-
-// ============ DATABASE (In-Memory) ============
-const dilemas = generateDilemas();
-const rooms = new Map<string, Room>();
-const gameResponses: GameResponse[] = [];
-
-// ============ FUNÇÃO PARA CALCULAR PERFIL ÉTICO ============
-function calculateEthicalProfile(answers: PlayerAnswer[]): EthicalProfile {
-  const profile = {
-    utilitarismo: 0,
-    deontologia: 0,
-    virtude: 0,
-    consequencialismo: 0,
-    relativismo: 0,
-  };
-
-  answers.forEach(answer => {
-    answer.analysis.ethicalAnalysis.forEach(analysis => {
-      profile[analysis.framework as keyof typeof profile] += analysis.score;
-    });
-  });
-
-  const total = answers.length || 1;
-  Object.keys(profile).forEach(key => {
-    profile[key as keyof typeof profile] = Math.round(profile[key as keyof typeof profile] / total);
-  });
-
-  const dominantFramework = Object.entries(profile).sort((a, b) => b[1] - a[1])[0][0];
-
-  return {
-    ...profile,
-    dominantFramework,
+interface Player {
+  name: string;
+  score: number;
+  ethicalProfile?: {
+    utilitarismo: number;
+    deontologia: number;
+    virtude: number;
+    consequencialismo: number;
+    relativismo: number;
+    dominantFramework: string;
   };
 }
 
-// ============ ROUTES ============
-app.get('/', (req, res) => {
-  res.json({ message: 'Backend profissional rodando! ✅', dilemas: dilemas.length });
-});
+const App: React.FC = () => {
+  const [screen, setScreen] = useState<Screen>('splash');
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [playerName, setPlayerName] = useState('');
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
+  const [currentDilema, setCurrentDilema] = useState<Dilema | null>(null);
+  const [selectedOption, setSelectedOption] = useState<Option | null>(null);
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [roomInfo, setRoomInfo] = useState<{ currentDilemaIndex: number; totalDilemas: number } | null>(null);
+  const [playerScores, setPlayerScores] = useState<Player[]>([]);
+  const [finalRanking, setFinalRanking] = useState<Player[]>([]);
 
-app.get('/dilemas', (req, res) => {
-  res.json(dilemas);
-});
+  // Initialize Socket.io
+  useEffect(() => {
+    const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3333';
+    const newSocket = io(backendUrl);
 
-app.get('/dilemas/:id', (req, res) => {
-  const dilema = dilemas.find(d => d.id === req.params.id);
-  if (!dilema) return res.status(404).json({ error: 'Dilema não encontrado' });
-  res.json(dilema);
-});
+    newSocket.on('connect', () => {
+      console.log('✅ Conectado ao backend');
+    });
 
-app.get('/rooms', (req, res) => {
-  const roomsList = Array.from(rooms.values()).map(room => ({
-    id: room.id,
-    name: room.name,
-    players: room.players.length,
-    maxPlayers: room.maxPlayers,
-    difficulty: room.difficulty,
-    status: room.status,
-  }));
-  res.json(roomsList);
-});
+    newSocket.on('rooms_updated', (updatedRooms: Room[]) => {
+      setRooms(updatedRooms);
+    });
 
-app.get('/rooms/:id/responses', (req, res) => {
-  const room = rooms.get(req.params.id);
-  if (!room) return res.status(404).json({ error: 'Sala não encontrada' });
+    newSocket.on('game_started', (data: { dilema: Dilema; roomInfo: any }) => {
+      setCurrentDilema(data.dilema);
+      setRoomInfo(data.roomInfo);
+      setScreen('game');
+    });
 
-  const responses = gameResponses.filter(r => r.roomId === req.params.id);
-  res.json(responses);
-});
+    newSocket.on('next_dilema', (data: { dilema: Dilema; roomInfo: any; playerScores: Player[] }) => {
+      setShowAnalysis(false);
+      setSelectedOption(null);
+      setCurrentDilema(data.dilema);
+      setRoomInfo(data.roomInfo);
+      setPlayerScores(data.playerScores);
+    });
 
-// ============ SOCKET.IO EVENTS ============
-io.on('connection', (socket) => {
-  console.log(`✅ Usuário conectado: ${socket.id}`);
+    newSocket.on('game_finished', (data: { ranking: Player[] }) => {
+      setFinalRanking(data.ranking);
+      setScreen('end');
+    });
 
-  socket.on('create_room', (data: { playerName: string; maxPlayers: number; difficulty: string }) => {
-    const roomId = `room_${Date.now()}`;
-    const newRoom: Room = {
-      id: roomId,
-      name: `Sala de ${data.playerName}`,
-      creator: socket.id,
-      creatorSocketId: socket.id,
-      players: [
-        {
-          id: socket.id,
-          name: data.playerName,
-          socketId: socket.id,
-          score: 0,
-          answers: [],
-          ethicalProfile: { utilitarismo: 0, deontologia: 0, virtude: 0, consequencialismo: 0, relativismo: 0, dominantFramework: '' },
-        },
-      ],
-      maxPlayers: data.maxPlayers,
-      difficulty: data.difficulty as 'fácil' | 'médio' | 'difícil',
-      status: 'waiting',
-      currentDilemaIndex: 0,
-      createdAt: new Date(),
+    newSocket.on('error', (error: any) => {
+      console.error('Erro:', error.message);
+      alert(error.message);
+    });
+
+    setSocket(newSocket);
+
+    return () => {
+      newSocket.disconnect();
     };
+  }, []);
 
-    rooms.set(roomId, newRoom);
-    socket.join(roomId);
-    socket.emit('room_created', newRoom);
-    io.emit('rooms_updated', Array.from(rooms.values()));
-    console.log(`📋 Sala criada: ${roomId}`);
-  });
-
-  socket.on('join_room', (data: { roomId: string; playerName: string }) => {
-    const room = rooms.get(data.roomId);
-    if (!room) {
-      socket.emit('error', { message: 'Sala não encontrada' });
-      return;
+  // Splash screen timer
+  useEffect(() => {
+    if (screen === 'splash') {
+      const timer = setTimeout(() => {
+        setScreen('menu');
+      }, 3500);
+      return () => clearTimeout(timer);
     }
+  }, [screen]);
 
-    if (room.players.length >= room.maxPlayers) {
-      socket.emit('error', { message: 'Sala cheia' });
-      return;
-    }
+  // Render Splash
+  const renderSplash = () => (
+    <div style={{
+      width: '100%',
+      height: '100vh',
+      backgroundImage: `url('/splash_bg.png')`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        textAlign: 'center',
+        animation: 'fadeInScale 2s ease-in-out',
+      }}>
+        <h1 style={{
+          fontSize: '64px',
+          fontWeight: 'bold',
+          color: '#FFD93D',
+          textShadow: '0 0 30px rgba(255, 217, 61, 0.8), 0 0 60px rgba(108, 99, 255, 0.6)',
+          fontFamily: 'Poppins, sans-serif',
+          letterSpacing: '3px',
+          margin: 0,
+          animation: 'glow 2s ease-in-out infinite',
+        }}>
+          Caminho dos Valores
+        </h1>
+      </div>
 
-    const newPlayer: Player = {
-      id: socket.id,
-      name: data.playerName,
-      socketId: socket.id,
-      score: 0,
-      answers: [],
-      ethicalProfile: { utilitarismo: 0, deontologia: 0, virtude: 0, consequencialismo: 0, relativismo: 0, dominantFramework: '' },
-    };
+      <style>{`
+        @keyframes fadeInScale {
+          from {
+            opacity: 0;
+            transform: scale(0.8);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        @keyframes glow {
+          0%, 100% {
+            textShadow: 0 0 30px rgba(255, 217, 61, 0.8), 0 0 60px rgba(108, 99, 255, 0.6);
+          }
+          50% {
+            textShadow: 0 0 50px rgba(255, 217, 61, 1), 0 0 80px rgba(108, 99, 255, 0.8);
+          }
+        }
+      `}</style>
+    </div>
+  );
 
-    room.players.push(newPlayer);
-    socket.join(data.roomId);
-    socket.emit('room_joined', room);
-    io.to(data.roomId).emit('player_joined', room);
-    io.emit('rooms_updated', Array.from(rooms.values()));
-    console.log(`👤 ${data.playerName} entrou na sala ${data.roomId}`);
-  });
+  // Render Menu
+  const renderMenu = () => (
+    <div style={{
+      width: '100%',
+      height: '100vh',
+      backgroundImage: `url('/menu_bg.png')`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(45, 27, 105, 0.3)',
+      }} />
 
-  socket.on('start_game', (data: { roomId: string }) => {
-    const room = rooms.get(data.roomId);
-    if (!room || room.creator !== socket.id) {
-      socket.emit('error', { message: 'Não autorizado' });
-      return;
-    }
+      <div style={{
+        position: 'relative',
+        zIndex: 10,
+        maxWidth: '600px',
+        width: '90%',
+        padding: '40px',
+        textAlign: 'center',
+      }}>
+        <h1 style={{
+          fontSize: '48px',
+          fontWeight: 'bold',
+          color: '#FFD93D',
+          textShadow: '0 0 20px rgba(255, 217, 61, 0.6)',
+          fontFamily: 'Poppins, sans-serif',
+          marginBottom: '30px',
+          letterSpacing: '2px',
+        }}>
+          Caminho dos Valores
+        </h1>
 
-    room.status = 'playing';
-    room.currentDilemaIndex = 0;
-    const currentDilema = dilemas[0];
+        <input
+          type="text"
+          placeholder="Digite seu nome"
+          value={playerName}
+          onChange={(e) => setPlayerName(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '15px 20px',
+            fontSize: '18px',
+            fontFamily: 'Poppins, sans-serif',
+            border: '2px solid #FFD93D',
+            borderRadius: '10px',
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            color: '#2D1B69',
+            marginBottom: '30px',
+            boxSizing: 'border-box',
+          }}
+        />
 
-    io.to(data.roomId).emit('game_started', {
-      dilema: currentDilema,
-      roomInfo: {
-        currentDilemaIndex: 1,
-        totalDilemas: dilemas.length,
-      },
-    });
-    console.log(`🎮 Jogo iniciado na sala ${data.roomId}`);
-  });
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '20px',
+          marginBottom: '40px',
+        }}>
+          {[
+            { src: '/icon_etica.png', label: 'Ética' },
+            { src: '/icon_valores.png', label: 'Valores' },
+            { src: '/icon_cultura.png', label: 'Cultura' },
+          ].map((icon, idx) => (
+            <div key={idx} style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '10px',
+            }}>
+              <img src={icon.src} alt={icon.label} style={{
+                width: '80px',
+                height: '80px',
+                objectFit: 'contain',
+              }} />
+              <span style={{
+                color: '#FFD93D',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                fontFamily: 'Poppins, sans-serif',
+              }}>{icon.label}</span>
+            </div>
+          ))}
+        </div>
 
-  socket.on('answer_dilema', (data: { roomId: string; dilemaId: string; optionId: string }) => {
-    const room = rooms.get(data.roomId);
-    if (!room) {
-      socket.emit('error', { message: 'Sala não encontrada' });
-      return;
-    }
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '15px',
+        }}>
+          <button
+            onClick={() => {
+              if (playerName.trim()) {
+                socket?.emit('create_room', { playerName, maxPlayers: 4, difficulty: 'médio' });
+              }
+            }}
+            style={{
+              padding: '15px 30px',
+              fontSize: '18px',
+              fontWeight: 'bold',
+              fontFamily: 'Poppins, sans-serif',
+              backgroundColor: '#FFD93D',
+              color: '#2D1B69',
+              border: 'none',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+            }}
+          >
+            Criar Sala
+          </button>
 
-    const player = room.players.find(p => p.id === socket.id);
-    if (!player) {
-      socket.emit('error', { message: 'Jogador não encontrado' });
-      return;
-    }
+          <button
+            onClick={() => setScreen('lobby')}
+            style={{
+              padding: '15px 30px',
+              fontSize: '18px',
+              fontWeight: 'bold',
+              fontFamily: 'Poppins, sans-serif',
+              backgroundColor: '#6C63FF',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+            }}
+          >
+            Entrar em Sala
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
-    const dilema = dilemas.find(d => d.id === data.dilemaId);
-    if (!dilema) {
-      socket.emit('error', { message: 'Dilema não encontrado' });
-      return;
-    }
+  // Render Lobby
+  const renderLobby = () => (
+    <div style={{
+      width: '100%',
+      height: '100vh',
+      backgroundColor: '#2D1B69',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '40px',
+      fontFamily: 'Poppins, sans-serif',
+    }}>
+      <h1 style={{
+        color: '#FFD93D',
+        fontSize: '40px',
+        marginBottom: '30px',
+      }}>
+        Salas Disponíveis
+      </h1>
 
-    const selectedOption = dilema.options.find(o => o.id === data.optionId);
-    if (!selectedOption) {
-      socket.emit('error', { message: 'Opção não encontrada' });
-      return;
-    }
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+        gap: '20px',
+        width: '100%',
+        maxWidth: '1000px',
+        marginBottom: '30px',
+      }}>
+        {rooms.map((room) => (
+          <div key={room.id} style={{
+            backgroundColor: 'rgba(108, 99, 255, 0.2)',
+            padding: '20px',
+            borderRadius: '10px',
+            border: '2px solid #FFD93D',
+            cursor: 'pointer',
+          }}>
+            <h3 style={{ color: '#FFD93D', marginBottom: '10px' }}>{room.name}</h3>
+            <p style={{ color: '#FFFFFF', marginBottom: '5px' }}>
+              Jogadores: {room.players.length}/{room.maxPlayers}
+            </p>
+            <p style={{ color: '#FFFFFF', marginBottom: '15px' }}>
+              Dificuldade: {room.difficulty}
+            </p>
+            <button
+              onClick={() => {
+                if (playerName.trim()) {
+                  socket?.emit('join_room', { roomId: room.id, playerName });
+                  setCurrentRoom(room);
+                }
+              }}
+              style={{
+                width: '100%',
+                padding: '10px',
+                backgroundColor: '#FFD93D',
+                color: '#2D1B69',
+                border: 'none',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+              }}
+            >
+              Entrar
+            </button>
+          </div>
+        ))}
+      </div>
 
-    // Register answer
-    player.answers.push({
-      dilemaId: data.dilemaId,
-      optionId: data.optionId,
-      timestamp: new Date(),
-      analysis: selectedOption,
-    });
+      <button
+        onClick={() => setScreen('menu')}
+        style={{
+          padding: '10px 30px',
+          backgroundColor: '#FF6B9D',
+          color: 'white',
+          border: 'none',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          fontSize: '16px',
+        }}
+      >
+        Voltar
+      </button>
+    </div>
+  );
 
-    player.score += selectedOption.overallScore;
-    player.ethicalProfile = calculateEthicalProfile(player.answers);
+  // Render Game
+  const renderGame = () => (
+    <div style={{
+      width: '100%',
+      height: '100vh',
+      backgroundColor: '#2D1B69',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '40px',
+      fontFamily: 'Poppins, sans-serif',
+      overflow: 'auto',
+    }}>
+      {currentDilema && !showAnalysis && (
+        <div style={{
+          maxWidth: '800px',
+          width: '100%',
+        }}>
+          <div style={{
+            marginBottom: '20px',
+            color: '#FFD93D',
+            fontSize: '14px',
+          }}>
+            Dilema {roomInfo?.currentDilemaIndex} de {roomInfo?.totalDilemas}
+          </div>
 
-    // Register response (only for creator)
-    gameResponses.push({
-      roomId: data.roomId,
-      playerId: player.id,
-      playerName: player.name,
-      dilemaId: data.dilemaId,
-      optionId: data.optionId,
-      analysis: selectedOption,
-      timestamp: new Date(),
-    });
+          <h1 style={{
+            color: '#FFD93D',
+            fontSize: '32px',
+            marginBottom: '20px',
+            textAlign: 'center',
+          }}>
+            {currentDilema.title}
+          </h1>
 
-    // Move to next dilema
-    room.currentDilemaIndex++;
-    if (room.currentDilemaIndex < dilemas.length) {
-      const nextDilema = dilemas[room.currentDilemaIndex];
-      io.to(data.roomId).emit('next_dilema', {
-        dilema: nextDilema,
-        roomInfo: {
-          currentDilemaIndex: room.currentDilemaIndex + 1,
-          totalDilemas: dilemas.length,
-        },
-        playerScores: room.players.map(p => ({ name: p.name, score: p.score, profile: p.ethicalProfile })),
-      });
-    } else {
-      // Game finished
-      room.status = 'finished';
-      const ranking = room.players.sort((a, b) => b.score - a.score);
-      io.to(data.roomId).emit('game_finished', {
-        ranking: ranking.map(p => ({ name: p.name, score: p.score, ethicalProfile: p.ethicalProfile })),
-      });
-    }
+          <div style={{
+            backgroundColor: 'rgba(108, 99, 255, 0.2)',
+            padding: '20px',
+            borderRadius: '10px',
+            marginBottom: '30px',
+            border: '1px solid #FFD93D',
+          }}>
+            <p style={{
+              color: '#FFFFFF',
+              fontSize: '16px',
+              lineHeight: '1.6',
+              marginBottom: '15px',
+            }}>
+              {currentDilema.description}
+            </p>
+            <p style={{
+              color: '#FFD93D',
+              fontSize: '14px',
+              fontStyle: 'italic',
+            }}>
+              {currentDilema.context}
+            </p>
+          </div>
 
-    console.log(`📊 ${player.name} respondeu e ganhou ${selectedOption.overallScore} pontos`);
-  });
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr',
+            gap: '15px',
+          }}>
+            {currentDilema.options.map((option) => (
+              <button
+                key={option.id}
+                onClick={() => {
+                  setSelectedOption(option);
+                  setShowAnalysis(true);
+                  socket?.emit('answer_dilema', {
+                    roomId: currentRoom?.id,
+                    dilemaId: currentDilema.id,
+                    optionId: option.id,
+                  });
+                }}
+                style={{
+                  padding: '20px',
+                  backgroundColor: 'rgba(108, 99, 255, 0.3)',
+                  color: '#FFFFFF',
+                  border: '2px solid #FFD93D',
+                  borderRadius: '10px',
+                  fontSize: '16px',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  fontFamily: 'Poppins, sans-serif',
+                  textAlign: 'left',
+                }}
+              >
+                {option.text}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
-  socket.on('disconnect', () => {
-    for (const [roomId, room] of rooms.entries()) {
-      room.players = room.players.filter(p => p.id !== socket.id);
-      if (room.players.length === 0) {
-        rooms.delete(roomId);
-      } else {
-        io.to(roomId).emit('player_left', room);
-      }
-    }
-    console.log(`❌ Usuário desconectado: ${socket.id}`);
-  });
-});
+      {showAnalysis && selectedOption && (
+        <div style={{
+          maxWidth: '900px',
+          width: '100%',
+          maxHeight: '90vh',
+          overflow: 'auto',
+        }}>
+          <h2 style={{
+            color: '#FFD93D',
+            marginBottom: '20px',
+            textAlign: 'center',
+          }}>
+            Análise da Sua Resposta
+          </h2>
 
-// ============ START SERVER ============
-const PORT = process.env.PORT || 3333;
-server.listen(PORT, () => {
-  console.log(`🚀 Backend profissional rodando em http://localhost:${PORT}`);
-  console.log(`📊 ${dilemas.length} dilemas carregados com análise ética completa`);
-  console.log(`✅ Sistema de pontuação, ranking e perfil ético ativado`);
-});
+          <div style={{
+            backgroundColor: 'rgba(108, 99, 255, 0.2)',
+            padding: '20px',
+            borderRadius: '10px',
+            marginBottom: '20px',
+            border: '1px solid #FFD93D',
+          }}>
+            <p style={{
+              color: '#FFFFFF',
+              fontSize: '16px',
+              lineHeight: '1.6',
+            }}>
+              {selectedOption.feedback}
+            </p>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '20px',
+            marginBottom: '20px',
+          }}>
+            <div style={{
+              backgroundColor: 'rgba(108, 99, 255, 0.2)',
+              padding: '15px',
+              borderRadius: '10px',
+              border: '1px solid #FFD93D',
+            }}>
+              <h3 style={{ color: '#FFD93D', marginBottom: '10px' }}>Análise Ética</h3>
+              {selectedOption.ethicalAnalysis.map((analysis, idx) => (
+                <div key={idx} style={{ marginBottom: '10px' }}>
+                  <p style={{ color: '#FFFFFF', margin: '5px 0' }}>
+                    <strong>{analysis.framework}</strong>: {analysis.score}/100
+                  </p>
+                  <p style={{ color: '#DDD', fontSize: '12px', margin: '0' }}>
+                    {analysis.explanation}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div style={{
+              backgroundColor: 'rgba(108, 99, 255, 0.2)',
+              padding: '15px',
+              borderRadius: '10px',
+              border: '1px solid #FFD93D',
+            }}>
+              <h3 style={{ color: '#FFD93D', marginBottom: '10px' }}>Valores Corporativos</h3>
+              {selectedOption.valueAnalysis.slice(0, 5).map((value, idx) => (
+                <div key={idx} style={{ marginBottom: '8px' }}>
+                  <p style={{ color: '#FFFFFF', margin: '3px 0', fon
+(Content truncated due to size limit. Use page ranges or line ranges to read remaining content)
