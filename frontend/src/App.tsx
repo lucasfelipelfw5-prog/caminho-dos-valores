@@ -1,20 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import io from 'socket.io-client';
 
-// Types
-interface Player {
-  id: string;
-  name: string;
-}
+type Screen = 'splash' | 'menu' | 'lobby' | 'game' | 'end';
 
 interface Room {
   id: string;
   name: string;
-  creator: string;
-  players: Player[];
+  players: number;
   maxPlayers: number;
-  difficulty: 'fácil' | 'médio' | 'difícil';
-  status: 'waiting' | 'playing' | 'finished';
+  difficulty: string;
 }
 
 interface Dilema {
@@ -24,89 +17,28 @@ interface Dilema {
   options: Array<{
     id: string;
     text: string;
-    value: string;
   }>;
 }
 
-// Screen Types
-type Screen = 'splash' | 'menu' | 'lobby' | 'waiting' | 'game' | 'end';
-
-const SOCKET_URL = "https://caminho-dos-valores.onrender.com";
-
 const App: React.FC = () => {
   const [screen, setScreen] = useState<Screen>('splash');
-  const [socket, setSocket] = useState<any>(null);
   const [playerName, setPlayerName] = useState('');
-  const [rooms, setRooms] = useState<Room[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([
+    { id: '1', name: 'Sala do Lucas', players: 2, maxPlayers: 4, difficulty: 'médio' },
+    { id: '2', name: 'Sala dos Amigos', players: 1, maxPlayers: 6, difficulty: 'fácil' },
+    { id: '3', name: 'Desafio Extremo', players: 3, maxPlayers: 4, difficulty: 'difícil' },
+  ]);
   const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
-  const [maxPlayers, setMaxPlayers] = useState(4);
-  const [difficulty, setDifficulty] = useState<'fácil' | 'médio' | 'difícil'>('médio');
-  const [currentDilema, setCurrentDilema] = useState<Dilema | null>(null);
-  const [gameResults, setGameResults] = useState<any>(null);
-
-  // Initialize Socket.io
-  useEffect(() => {
-    const newSocket = io(SOCKET_URL, {
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5,
-    });
-
-    newSocket.on('connect', () => {
-      console.log('✅ Socket conectado:', newSocket.id);
-      (window as any).socket = newSocket;
-    });
-
-    newSocket.on('connect_error', (error: any) => {
-      console.error('❌ Erro de conexão:', error);
-    });
-
-    newSocket.on('rooms_list', (roomsList: Room[]) => {
-      console.log('📋 Salas recebidas:', roomsList);
-      setRooms(roomsList);
-    });
-
-    newSocket.on('room_joined', (room: Room) => {
-      console.log('✅ Entrou na sala:', room);
-      setCurrentRoom(room);
-      setScreen('lobby');
-    });
-
-    newSocket.on('room_created', (room: Room) => {
-      console.log('✅ Sala criada:', room);
-      setCurrentRoom(room);
-      setScreen('lobby');
-    });
-
-    newSocket.on('game_started', (dilema: Dilema) => {
-      console.log('🎮 Jogo iniciado:', dilema);
-      setCurrentDilema(dilema);
-      setScreen('game');
-    });
-
-    newSocket.on('game_ended', (results: any) => {
-      console.log('🏁 Jogo finalizado:', results);
-      setGameResults(results);
-      setScreen('end');
-    });
-
-    newSocket.on('player_joined', (room: Room) => {
-      console.log('👤 Novo jogador:', room);
-      setCurrentRoom(room);
-    });
-
-    newSocket.on('player_removed', (room: Room) => {
-      console.log('❌ Jogador removido:', room);
-      setCurrentRoom(room);
-    });
-
-    setSocket(newSocket);
-
-    return () => {
-      newSocket.disconnect();
-    };
-  }, []);
+  const [currentDilema, setCurrentDilema] = useState<Dilema | null>({
+    id: '1',
+    title: 'O Dilema do Trem',
+    description: 'Um trem descontrolado está vindo em sua direção. Você pode puxar uma alavanca para desviar o trem para outro trilho, mas nesse trilho há uma pessoa. O que você faz?',
+    options: [
+      { id: '1', text: 'Puxar a alavanca e desviar o trem' },
+      { id: '2', text: 'Não fazer nada e deixar o trem seguir seu curso' },
+      { id: '3', text: 'Tentar avisar as pessoas' },
+    ],
+  });
 
   // Splash screen timer
   useEffect(() => {
@@ -118,69 +50,12 @@ const App: React.FC = () => {
     }
   }, [screen]);
 
-  // Handlers
-  const handleCreateRoom = () => {
-    if (!socket || !playerName.trim()) {
-      alert('Por favor, digite seu nome');
-      return;
-    }
-    socket.emit('create_room', {
-      playerName,
-      maxPlayers,
-      difficulty,
-    });
-  };
-
-  const handleJoinRoom = (roomId: string) => {
-    if (!socket || !playerName.trim()) {
-      alert('Por favor, digite seu nome');
-      return;
-    }
-    socket.emit('join_room', {
-      roomId,
-      playerName,
-    });
-  };
-
-  const handleStartGame = () => {
-    if (socket && currentRoom) {
-      socket.emit('start_game', {
-        roomId: currentRoom.id,
-      });
-    }
-  };
-
-  const handleRemovePlayer = (playerId: string) => {
-    if (socket && currentRoom) {
-      socket.emit('remove_player', {
-        roomId: currentRoom.id,
-        playerId,
-      });
-    }
-  };
-
-  const handleAnswerDilema = (optionId: string) => {
-    if (socket && currentRoom && currentDilema) {
-      socket.emit('answer_dilema', {
-        roomId: currentRoom.id,
-        dilemaId: currentDilema.id,
-        optionId,
-      });
-    }
-  };
-
-  const handleBackToMenu = () => {
-    setScreen('menu');
-    setCurrentRoom(null);
-    setPlayerName('');
-  };
-
-  // Render Screens
+  // Render Splash
   const renderSplash = () => (
     <div style={{
       width: '100%',
       height: '100vh',
-      backgroundImage: `url('/public/splash_bg.png')`,
+      backgroundImage: `url('/splash_bg.png')`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       display: 'flex',
@@ -189,7 +64,6 @@ const App: React.FC = () => {
       position: 'relative',
       overflow: 'hidden',
     }}>
-      {/* Animated Logo */}
       <div style={{
         textAlign: 'center',
         animation: 'fadeInScale 2s ease-in-out',
@@ -231,11 +105,12 @@ const App: React.FC = () => {
     </div>
   );
 
+  // Render Menu
   const renderMenu = () => (
     <div style={{
       width: '100%',
       height: '100vh',
-      backgroundImage: `url('/public/menu_bg.png')`,
+      backgroundImage: `url('/menu_bg.png')`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       display: 'flex',
@@ -244,7 +119,6 @@ const App: React.FC = () => {
       position: 'relative',
       overflow: 'hidden',
     }}>
-      {/* Semi-transparent overlay */}
       <div style={{
         position: 'absolute',
         top: 0,
@@ -262,7 +136,6 @@ const App: React.FC = () => {
         padding: '40px',
         textAlign: 'center',
       }}>
-        {/* Title */}
         <h1 style={{
           fontSize: '48px',
           fontWeight: 'bold',
@@ -275,9 +148,7 @@ const App: React.FC = () => {
           Caminho dos Valores
         </h1>
 
-        {/* Player Name Input */}
         <input
-          key="menu-name-input"
           type="text"
           placeholder="Digite seu nome"
           value={playerName}
@@ -293,39 +164,22 @@ const App: React.FC = () => {
             color: '#2D1B69',
             marginBottom: '30px',
             boxSizing: 'border-box',
-            transition: 'all 0.3s ease',
-          }}
-          onFocus={(e) => {
-            e.currentTarget.style.boxShadow = '0 0 20px rgba(255, 217, 61, 0.6)';
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.boxShadow = 'none';
           }}
         />
 
-        {/* Values Icons Grid */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(3, 1fr)',
           gap: '20px',
           marginBottom: '40px',
         }}>
-          {/* Casos - Lanterna */}
           <div style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             gap: '10px',
-            cursor: 'pointer',
-            transition: 'transform 0.3s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.1)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
           }}>
-            <img src="/public/icon_lantern.png" alt="Casos" style={{
+            <img src="/icon_lantern.png" alt="Casos" style={{
               width: '80px',
               height: '80px',
               objectFit: 'contain',
@@ -335,26 +189,16 @@ const App: React.FC = () => {
               fontSize: '14px',
               fontWeight: 'bold',
               fontFamily: 'Poppins, sans-serif',
-              textShadow: '0 0 10px rgba(255, 217, 61, 0.5)',
             }}>Casos</span>
           </div>
 
-          {/* Deie Moral - Balança */}
           <div style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             gap: '10px',
-            cursor: 'pointer',
-            transition: 'transform 0.3s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.1)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
           }}>
-            <img src="/public/icon_balance.png" alt="Deie Moral" style={{
+            <img src="/icon_balance.png" alt="Deie Moral" style={{
               width: '80px',
               height: '80px',
               objectFit: 'contain',
@@ -364,26 +208,16 @@ const App: React.FC = () => {
               fontSize: '14px',
               fontWeight: 'bold',
               fontFamily: 'Poppins, sans-serif',
-              textShadow: '0 0 10px rgba(255, 217, 61, 0.5)',
             }}>Deie Moral</span>
           </div>
 
-          {/* Emocional - Coração */}
           <div style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             gap: '10px',
-            cursor: 'pointer',
-            transition: 'transform 0.3s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.1)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
           }}>
-            <img src="/public/icon_heart.png" alt="Emocional" style={{
+            <img src="/icon_heart.png" alt="Emocional" style={{
               width: '80px',
               height: '80px',
               objectFit: 'contain',
@@ -393,19 +227,17 @@ const App: React.FC = () => {
               fontSize: '14px',
               fontWeight: 'bold',
               fontFamily: 'Poppins, sans-serif',
-              textShadow: '0 0 10px rgba(255, 217, 61, 0.5)',
             }}>Emocional</span>
           </div>
         </div>
 
-        {/* Buttons */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
           gap: '15px',
         }}>
           <button
-            onClick={handleCreateRoom}
+            onClick={() => setScreen('lobby')}
             style={{
               padding: '15px 30px',
               fontSize: '18px',
@@ -417,27 +249,19 @@ const App: React.FC = () => {
               borderRadius: '10px',
               cursor: 'pointer',
               transition: 'all 0.3s ease',
-              boxShadow: '0 4px 15px rgba(255, 217, 61, 0.4)',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-3px)';
-              e.currentTarget.style.boxShadow = '0 6px 20px rgba(255, 217, 61, 0.6)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 15px rgba(255, 217, 61, 0.4)';
             }}
           >
             Criar Sala
           </button>
 
           <button
-            onClick={() => {
-              if (socket) {
-                socket.emit('get_rooms');
-              }
-              setScreen('lobby');
-            }}
+            onClick={() => setScreen('lobby')}
             style={{
               padding: '15px 30px',
               fontSize: '18px',
@@ -449,15 +273,12 @@ const App: React.FC = () => {
               borderRadius: '10px',
               cursor: 'pointer',
               transition: 'all 0.3s ease',
-              boxShadow: '0 4px 15px rgba(108, 99, 255, 0.4)',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-3px)';
-              e.currentTarget.style.boxShadow = '0 6px 20px rgba(108, 99, 255, 0.6)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 15px rgba(108, 99, 255, 0.4)';
             }}
           >
             Entrar em Sala
@@ -467,6 +288,7 @@ const App: React.FC = () => {
     </div>
   );
 
+  // Render Lobby
   const renderLobby = () => (
     <div style={{
       width: '100%',
@@ -484,139 +306,64 @@ const App: React.FC = () => {
         fontSize: '40px',
         marginBottom: '30px',
       }}>
-        {currentRoom ? currentRoom.name : 'Salas Disponíveis'}
+        Salas Disponíveis
       </h1>
 
-      {currentRoom ? (
-        <div style={{
-          backgroundColor: 'rgba(108, 99, 255, 0.2)',
-          padding: '30px',
-          borderRadius: '15px',
-          maxWidth: '600px',
-          width: '100%',
-        }}>
-          <h2 style={{ color: '#FFD93D', marginBottom: '20px' }}>
-            Jogadores ({currentRoom.players.length}/{currentRoom.maxPlayers})
-          </h2>
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '10px',
-            marginBottom: '30px',
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+        gap: '20px',
+        width: '100%',
+        maxWidth: '1000px',
+        marginBottom: '30px',
+      }}>
+        {rooms.map((room) => (
+          <div key={room.id} style={{
+            backgroundColor: 'rgba(108, 99, 255, 0.2)',
+            padding: '20px',
+            borderRadius: '10px',
+            border: '2px solid #FFD93D',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-5px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
           }}>
-            {currentRoom.players.map((player) => (
-              <div key={player.id} style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '10px 15px',
-                backgroundColor: 'rgba(255, 217, 61, 0.1)',
-                borderRadius: '8px',
-                color: '#FFFFFF',
-              }}>
-                <span>{player.name}</span>
-                {currentRoom.creator === socket?.id && player.id !== socket?.id && (
-                  <button
-                    onClick={() => handleRemovePlayer(player.id)}
-                    style={{
-                      padding: '5px 10px',
-                      backgroundColor: '#FF6B9D',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '5px',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                    }}
-                  >
-                    Remover
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {currentRoom.creator === socket?.id && (
+            <h3 style={{ color: '#FFD93D', marginBottom: '10px' }}>{room.name}</h3>
+            <p style={{ color: '#FFFFFF', marginBottom: '5px' }}>
+              Jogadores: {room.players}/{room.maxPlayers}
+            </p>
+            <p style={{ color: '#FFFFFF', marginBottom: '15px' }}>
+              Dificuldade: {room.difficulty}
+            </p>
             <button
-              onClick={handleStartGame}
+              onClick={() => {
+                setCurrentRoom(room);
+                setScreen('game');
+              }}
               style={{
                 width: '100%',
-                padding: '15px',
+                padding: '10px',
                 backgroundColor: '#FFD93D',
                 color: '#2D1B69',
                 border: 'none',
-                borderRadius: '8px',
-                fontSize: '18px',
-                fontWeight: 'bold',
+                borderRadius: '5px',
                 cursor: 'pointer',
-                transition: 'all 0.3s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-3px)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
+                fontWeight: 'bold',
               }}
             >
-              Iniciar Jogo
+              Entrar
             </button>
-          )}
-        </div>
-      ) : (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-          gap: '20px',
-          width: '100%',
-          maxWidth: '1000px',
-        }}>
-          {rooms.map((room) => (
-            <div key={room.id} style={{
-              backgroundColor: 'rgba(108, 99, 255, 0.2)',
-              padding: '20px',
-              borderRadius: '10px',
-              border: '2px solid #FFD93D',
-              cursor: 'pointer',
-              transition: 'all 0.3s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-5px)';
-              e.currentTarget.style.boxShadow = '0 10px 30px rgba(255, 217, 61, 0.3)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = 'none';
-            }}>
-              <h3 style={{ color: '#FFD93D', marginBottom: '10px' }}>{room.name}</h3>
-              <p style={{ color: '#FFFFFF', marginBottom: '5px' }}>
-                Jogadores: {room.players.length}/{room.maxPlayers}
-              </p>
-              <p style={{ color: '#FFFFFF', marginBottom: '15px' }}>
-                Dificuldade: {room.difficulty}
-              </p>
-              <button
-                onClick={() => handleJoinRoom(room.id)}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  backgroundColor: '#FFD93D',
-                  color: '#2D1B69',
-                  border: 'none',
-                  borderRadius: '5px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                }}
-              >
-                Entrar
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+          </div>
+        ))}
+      </div>
 
       <button
-        onClick={handleBackToMenu}
+        onClick={() => setScreen('menu')}
         style={{
-          marginTop: '30px',
           padding: '10px 30px',
           backgroundColor: '#FF6B9D',
           color: 'white',
@@ -631,6 +378,7 @@ const App: React.FC = () => {
     </div>
   );
 
+  // Render Game
   const renderGame = () => (
     <div style={{
       width: '100%',
@@ -673,7 +421,7 @@ const App: React.FC = () => {
             {currentDilema.options.map((option) => (
               <button
                 key={option.id}
-                onClick={() => handleAnswerDilema(option.id)}
+                onClick={() => setScreen('end')}
                 style={{
                   padding: '20px',
                   backgroundColor: 'rgba(108, 99, 255, 0.3)',
@@ -703,6 +451,7 @@ const App: React.FC = () => {
     </div>
   );
 
+  // Render End
   const renderEnd = () => (
     <div style={{
       width: '100%',
@@ -722,26 +471,16 @@ const App: React.FC = () => {
       }}>
         Jogo Finalizado!
       </h1>
-      {gameResults && (
-        <div style={{
-          backgroundColor: 'rgba(108, 99, 255, 0.2)',
-          padding: '30px',
-          borderRadius: '15px',
-          maxWidth: '600px',
-          width: '100%',
-          marginBottom: '30px',
-        }}>
-          <pre style={{
-            color: '#FFFFFF',
-            whiteSpace: 'pre-wrap',
-            wordWrap: 'break-word',
-          }}>
-            {JSON.stringify(gameResults, null, 2)}
-          </pre>
-        </div>
-      )}
+      <p style={{
+        color: '#FFFFFF',
+        fontSize: '20px',
+        marginBottom: '30px',
+        textAlign: 'center',
+      }}>
+        Obrigado por jogar Caminho dos Valores!
+      </p>
       <button
-        onClick={handleBackToMenu}
+        onClick={() => setScreen('menu')}
         style={{
           padding: '15px 30px',
           backgroundColor: '#FFD93D',
