@@ -229,6 +229,11 @@ io.on('connection', (socket: Socket) => {
 app.get('/api/game/start', (req, res) => { /* seu código antigo para single-player */ });
 app.post('/api/game/session/:sessionId/choice', (req, res) => { /* seu código antigo */ });
 
+// Rota simples para testar
+app.get('/', (req: any, res: any) => {
+  res.send('Backend rodando! ✅');
+});
+
 server.listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
 });
