@@ -960,8 +960,9 @@ export default function App() {
   });
 
   useEffect(() => {
-    const newSocket = io(SOCKET_URL, { transports: ["websocket"] });
-    setSocket(newSocket);
+const newSocket = io(SOCKET_URL, { transports: ["websocket"] });
+(window as any).socket = newSocket;
+setSocket(newSocket);
 
     newSocket.on("sala-criada", (data: { salaId: string; criadorId: string; configuracao: ConfiguracaoSala }) => {
       setMinhaSalaId(data.salaId);
