@@ -1,239 +1,481 @@
 import express from 'express';
-import cors from 'cors';
-import { v4 as uuidv4 } from 'uuid';
-import { Server, Socket } from 'socket.io';
 import http from 'http';
-
-// -------------------------------------------------------------------
-// TIPAGENS (copia isso exatamente como está)
-interface Efeito {
-  valor: 'honestidade' | 'empatia' | 'coragem' | 'pragmatismo';
-  delta: number;
-}
-
-interface Dilema {
-  id: string;
-  texto: string;
-  escolhas: string[];
-  efeitos: Efeito[][];
-}
-
-interface Valores {
-  honestidade: number;
-  empatia: number;
-  coragem: number;
-  pragmatismo: number;
-}
-
-interface Jogador {
-  id: string;
-  nome: string;
-  valores: Valores;
-  posicao: number;
-}
-
-interface Sala {
-  salaId: string;
-  jogadores: Jogador[];
-  dilemaAtualId: string;
-  fim: boolean;
-  turnoAtual: string;
-}
+import { Server as SocketIOServer } from 'socket.io';
+import cors from 'cors';
 
 const app = express();
-const PORT = process.env.PORT || 3333;
+const server = http.createServer(app);
+const io = new SocketIOServer(server, {
+  cors: {
+    origin: ['http://localhost:5173', 'https://caminho-dos-valores.vercel.app'],
+    methods: ['GET', 'POST'],
+  },
+});
 
 app.use(cors());
 app.use(express.json());
 
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" }
-});
-
-// -------------------------------------------------------------------
-const dilemas: Dilema[] = [
-  {
-    id: "d1",
-    texto: "Você encontra uma carteira com R$ 800 e documentos na rua. O que faz?",
-    escolhas: ["Procura o dono imediatamente", "Fica com o dinheiro e joga os documentos fora"],
-    efeitos: [[{ valor: "honestidade", delta: 6 }], [{ valor: "pragmatismo", delta: 6 }, { valor: "honestidade", delta: -5 }]]
-  },
-  {
-    id: "d2",
-    texto: "Seu chefe pede pra você mentir pro cliente dizendo que o projeto está no prazo (quando não está).",
-    escolhas: ["Fala a verdade pro cliente", "Segue a ordem do chefe"],
-    efeitos: [[{ valor: "honestidade", delta: 5 }, { valor: "coragem", delta: 4 }], [{ valor: "pragmatismo", delta: 5 }, { valor: "honestidade", delta: -4 }]]
-  },
-  {
-    id: "d3",
-    texto: "Um colega está sendo injustiçado no trabalho e ninguém fala nada.",
-    escolhas: ["Defende ele na frente de todo mundo", "Fica quieto pra não se queimar"],
-    efeitos: [[{ valor: "coragem", delta: 7 }, { valor: "empatia", delta: 4 }], [{ valor: "pragmatismo", delta: 4 }, { valor: "coragem", delta: -5 }]]
-  },
-  {
-    id: "d4",
-    texto: "Você descobre que pode ganhar muito dinheiro com um produto que polui um pouco o meio ambiente.",
-    escolhas: ["Lança o produto mesmo assim", "Desiste do lucro e escolhe uma opção ecológica"],
-    efeitos: [[{ valor: "pragmatismo", delta: 7 }], [{ valor: "empatia", delta: 6 }, { valor: "pragmatismo", delta: -5 }]]
-  },
-  {
-    id: "d5",
-    texto: "Seu melhor amigo te pergunta se a roupa dele está boa (e está horrível).",
-    escolhas: ["Diz a verdade na lata", "Mente pra não magoar"],
-    efeitos: [[{ valor: "honestidade", delta: 5 }], [{ valor: "empatia", delta: 6 }, { valor: "honestidade", delta: -4 }]]
-  },
-  {
-    id: "d6",
-    texto: "Você vê um estranho sendo assaltado na rua à noite.",
-    escolhas: ["Intervém mesmo correndo risco", "Liga pra polícia e fica de longe"],
-    efeitos: [[{ valor: "coragem", delta: 8 }, { valor: "empatia", delta: 5 }], [{ valor: "pragmatismo", delta: 5 }, { valor: "coragem", delta: -6 }]]
-  },
-  {
-    id: "d7",
-    texto: "Você pode copiar no vestibular e garantir a vaga dos sonhos.",
-    escolhas: ["Copia escondido", "Faz a prova limpo"],
-    efeitos: [[{ valor: "pragmatismo", delta: 7 }, { valor: "honestidade", delta: -7 }], [{ valor: "honestidade", delta: 8 }]]
-  },
-  {
-    id: "d8",
-    texto: "Você comete um erro grave no trabalho que pode ser escondido facilmente.",
-    escolhas: ["Assume o erro na hora", "Esconde e reza pra ninguém descobrir"],
-    efeitos: [[{ valor: "honestidade", delta: 7 }, { valor: "coragem", delta: 5 }], [{ valor: "pragmatismo", delta: 7 }, { valor: "honestidade", delta: -6 }]]
-  },
-  {
-    id: "d9",
-    texto: "Você tem dinheiro pra ajudar só uma causa: uma criança doente ou uma ONG grande de impacto.",
-    escolhas: ["Ajuda a criança (impacto emocional)", "Doa pra ONG (maior alcance)"],
-    efeitos: [[{ valor: "empatia", delta: 8 }], [{ valor: "pragmatismo", delta: 7 }]]
-  },
-  {
-    id: "d10",
-    texto: "Você descobre um furo no sistema da empresa que te daria aumento automático.",
-    escolhas: ["Explora o furo", "Reporta pro RH"],
-    efeitos: [[{ valor: "pragmatismo", delta: 8 }, { valor: "honestidade", delta: -7 }], [{ valor: "honestidade", delta: 8 }, { valor: "coragem", delta: 4 }]]
-  },
-  {
-    id: "d11",
-    texto: "Seu parceiro te traiu, mas tá arrependido e quer voltar.",
-    escolhas: ["Dá uma segunda chance", "Termina de vez"],
-    efeitos: [[{ valor: "empatia", delta: 7 }, { valor: "pragmatismo", delta: -4 }], [{ valor: "pragmatismo", delta: 6 }]]
-  },
-  {
-    id: "d12",
-    texto: "Você pode vazar um áudio do seu chefe falando mal da empresa e ser promovido no caos.",
-    escolhas: ["Vaza o áudio", "Guarda e ignora"],
-    efeitos: [[{ valor: "pragmatismo", delta: 9 }, { valor: "honestidade", delta: -8 }], [{ valor: "honestidade", delta: 7 }]]
-  },
-  {
-    id: "d13",
-    texto: "Você tem chance de entrar num esquema de pirâmide que tá dando muito dinheiro pra todo mundo que você conhece.",
-    escolhas: ["Entra no esquema", "Fica de fora mesmo vendo os outros enriquecerem"],
-    efeitos: [[{ valor: "pragmatismo", delta: 10 }], [{ valor: "honestidade", delta: 6 }, { valor: "coragem", delta: 5 }]]
-  },
-  {
-    id: "d14",
-    texto: "Você flagra seu filho mentindo pra você sobre algo sério.",
-    escolhas: ["Castiga forte pra ele aprender", "Conversar com empatia e entender o motivo"],
-    efeitos: [[{ valor: "honestidade", delta: 5 }, { valor: "pragmatismo", delta: 5 }], [{ valor: "empatia", delta: 9 }]]
-  },
-  {
-    id: "d15",
-    texto: "Última pergunta: você chegaria até aqui se ninguém estivesse vendo?",
-    escolhas: ["Sim, faço o certo mesmo sozinho", "Só faço o certo quando tem plateia"],
-    efeitos: [[{ valor: "honestidade", delta: 10 }, { valor: "coragem", delta: 8 }], [{ valor: "pragmatismo", delta: 8 }]]
-  }
-];
-
-interface Session {
-  salaId: string;
-  jogadores: { id: string; nome: string; valores: Valores; posicao: number; }[];
-  dilemaAtualId: string;
-  fim: boolean;
-  turnoAtual: string; // ID do jogador da vez
+// ============ TYPES ============
+interface EthicalAnalysis {
+  framework: 'utilitarismo' | 'deontologia' | 'virtude' | 'consequencialismo' | 'relativismo';
+  score: number;
+  explanation: string;
 }
 
-const salas: Record<string, Sala> = {};
-// Socket.io
-io.on('connection', (socket: Socket) => {
-  console.log('Jogador conectado:', socket.id);
+interface ValueAnalysis {
+  value: string;
+  alignment: number;
+  explanation: string;
+}
 
-  socket.on('criar-sala', (nome: string) => {
-    const salaId = uuidv4().slice(0, 8);
-    salas[salaId] = {
-      salaId,
-      jogadores: [{ id: socket.id, nome, valores: { honestidade: 0, empatia: 0, coragem: 0, pragmatismo: 0 }, posicao: 0 }],
-      dilemaAtualId: dilemas[0].id,
-      fim: false,
-      turnoAtual: socket.id
+interface CulturalAnalysis {
+  impact: 'positivo' | 'neutro' | 'negativo';
+  explanation: string;
+  organizationalRisk: number;
+}
+
+interface OptionAnalysis {
+  id: string;
+  text: string;
+  ethicalAnalysis: EthicalAnalysis[];
+  valueAnalysis: ValueAnalysis[];
+  culturalAnalysis: CulturalAnalysis;
+  feedback: string;
+  overallScore: number;
+}
+
+interface Dilema {
+  id: string;
+  title: string;
+  description: string;
+  context: string;
+  category: 'caso' | 'deie_moral' | 'emocional';
+  difficulty: 'fácil' | 'médio' | 'difícil';
+  options: OptionAnalysis[];
+  learningObjective: string;
+}
+
+interface Player {
+  id: string;
+  name: string;
+  socketId: string;
+  score: number;
+  answers: PlayerAnswer[];
+  ethicalProfile: EthicalProfile;
+}
+
+interface PlayerAnswer {
+  dilemaId: string;
+  optionId: string;
+  timestamp: Date;
+  analysis: OptionAnalysis;
+}
+
+interface EthicalProfile {
+  utilitarismo: number;
+  deontologia: number;
+  virtude: number;
+  consequencialismo: number;
+  relativismo: number;
+  dominantFramework: string;
+}
+
+interface Room {
+  id: string;
+  name: string;
+  creator: string;
+  creatorSocketId: string;
+  players: Player[];
+  maxPlayers: number;
+  difficulty: 'fácil' | 'médio' | 'difícil';
+  status: 'waiting' | 'playing' | 'finished';
+  currentDilemaIndex: number;
+  createdAt: Date;
+}
+
+interface GameResponse {
+  roomId: string;
+  playerId: string;
+  playerName: string;
+  dilemaId: string;
+  optionId: string;
+  analysis: OptionAnalysis;
+  timestamp: Date;
+}
+
+// ============ GERADOR DE DILEMAS ============
+const corporateValues = [
+  'Honestidade',
+  'Justiça',
+  'Compaixão',
+  'Responsabilidade',
+  'Integridade',
+  'Coragem',
+  'Respeito',
+  'Confiança',
+  'Inovação',
+  'Sustentabilidade',
+];
+
+const themes = [
+  { name: 'Fraude Corporativa', category: 'caso', difficulty: 'difícil' },
+  { name: 'Discriminação', category: 'emocional', difficulty: 'médio' },
+  { name: 'Privacidade vs Segurança', category: 'caso', difficulty: 'difícil' },
+  { name: 'Sustentabilidade vs Lucro', category: 'caso', difficulty: 'difícil' },
+  { name: 'Assédio Moral', category: 'emocional', difficulty: 'médio' },
+  { name: 'Nepotismo', category: 'caso', difficulty: 'médio' },
+  { name: 'Corrupção Sistêmica', category: 'deie_moral', difficulty: 'difícil' },
+  { name: 'Whistleblowing', category: 'deie_moral', difficulty: 'difícil' },
+  { name: 'Conflito de Interesse', category: 'deie_moral', difficulty: 'médio' },
+  { name: 'Segredo Profissional', category: 'deie_moral', difficulty: 'difícil' },
+  { name: 'Experimentação Animal', category: 'deie_moral', difficulty: 'difícil' },
+  { name: 'Eutanásia', category: 'emocional', difficulty: 'difícil' },
+  { name: 'Educação vs Trabalho', category: 'emocional', difficulty: 'difícil' },
+  { name: 'Tecnologia Destrutiva', category: 'deie_moral', difficulty: 'difícil' },
+  { name: 'Justiça vs Misericórdia', category: 'emocional', difficulty: 'difícil' },
+  { name: 'Doação de Órgãos', category: 'deie_moral', difficulty: 'difícil' },
+  { name: 'Imigração', category: 'caso', difficulty: 'difícil' },
+  { name: 'Pena de Morte', category: 'deie_moral', difficulty: 'difícil' },
+  { name: 'Pesquisa Genética', category: 'deie_moral', difficulty: 'difícil' },
+  { name: 'Inteligência Artificial', category: 'caso', difficulty: 'difícil' },
+  { name: 'Desperdício vs Pobreza', category: 'emocional', difficulty: 'médio' },
+  { name: 'Mentira Branca', category: 'emocional', difficulty: 'fácil' },
+  { name: 'Roubo por Necessidade', category: 'emocional', difficulty: 'difícil' },
+  { name: 'Segurança de Dados', category: 'caso', difficulty: 'médio' },
+  { name: 'Competição Desleal', category: 'caso', difficulty: 'médio' },
+  { name: 'Assédio Sexual', category: 'emocional', difficulty: 'difícil' },
+  { name: 'Despedimento Injusto', category: 'caso', difficulty: 'médio' },
+  { name: 'Qualidade vs Custo', category: 'caso', difficulty: 'médio' },
+  { name: 'Confidencialidade', category: 'caso', difficulty: 'médio' },
+  { name: 'Diversidade e Inclusão', category: 'emocional', difficulty: 'médio' },
+];
+
+const optionTemplates = [
+  {
+    text: 'Agir com total integridade e transparência',
+    ethicalScores: { utilitarismo: 75, deontologia: 95, virtude: 90, consequencialismo: 70, relativismo: 70 },
+    valueAlignments: { Honestidade: 100, Justiça: 90, Integridade: 100, Coragem: 85, Respeito: 85, Compaixão: 70, Responsabilidade: 90, Confiança: 85, Inovação: 60, Sustentabilidade: 70 },
+    culturalImpact: 'positivo',
+    feedback: 'Você escolheu a abordagem mais ética, priorizando integridade acima de tudo. Isso constrói confiança organizacional a longo prazo.',
+    score: 90,
+  },
+  {
+    text: 'Buscar uma solução intermediária que equilibre interesses',
+    ethicalScores: { utilitarismo: 80, deontologia: 70, virtude: 80, consequencialismo: 75, relativismo: 80 },
+    valueAlignments: { Justiça: 80, Compaixão: 80, Responsabilidade: 85, Inovação: 75, Sustentabilidade: 75, Honestidade: 70, Integridade: 75, Coragem: 70, Respeito: 80, Confiança: 75 },
+    culturalImpact: 'positivo',
+    feedback: 'Você buscou um equilíbrio pragmático que respeita múltiplas perspectivas. Bom para resolução de conflitos.',
+    score: 75,
+  },
+  {
+    text: 'Priorizar interesse pessoal ou organizacional imediato',
+    ethicalScores: { utilitarismo: 40, deontologia: 20, virtude: 30, consequencialismo: 35, relativismo: 45 },
+    valueAlignments: { Honestidade: -60, Justiça: -70, Integridade: -80, Coragem: -80, Respeito: -60, Compaixão: -70, Responsabilidade: -75, Confiança: -85, Inovação: -40, Sustentabilidade: -60 },
+    culturalImpact: 'negativo',
+    feedback: 'Esta escolha compromete princípios éticos fundamentais. Pode gerar riscos legais e reputacionais graves.',
+    score: 25,
+  },
+  {
+    text: 'Consultar stakeholders e tomar decisão coletiva',
+    ethicalScores: { utilitarismo: 85, deontologia: 80, virtude: 85, consequencialismo: 80, relativismo: 85 },
+    valueAlignments: { Respeito: 95, Confiança: 90, Justiça: 85, Responsabilidade: 90, Inovação: 75, Honestidade: 85, Integridade: 85, Coragem: 75, Compaixão: 85, Sustentabilidade: 80 },
+    culturalImpact: 'positivo',
+    feedback: 'Você envolveu outros na decisão, demonstrando liderança colaborativa. Excelente para construir consenso.',
+    score: 85,
+  },
+];
+
+function generateDilemas(): Dilema[] {
+  const dilemas: Dilema[] = [];
+
+  themes.forEach((theme, index) => {
+    const dilema: Dilema = {
+      id: String(index + 1),
+      title: theme.name,
+      description: `Você enfrenta um dilema relacionado a ${theme.name.toLowerCase()}. Qual é sua abordagem?`,
+      context: `Cenário real de ${theme.name.toLowerCase()} em ambientes corporativos modernos`,
+      category: theme.category as 'caso' | 'deie_moral' | 'emocional',
+      difficulty: theme.difficulty as 'fácil' | 'médio' | 'difícil',
+      learningObjective: `Entender implicações éticas de ${theme.name.toLowerCase()}`,
+      options: optionTemplates.map((template, optIndex) => {
+        const ethicalAnalysis: EthicalAnalysis[] = [
+          { framework: 'utilitarismo', score: template.ethicalScores.utilitarismo, explanation: 'Maximiza bem-estar geral considerando consequências' },
+          { framework: 'deontologia', score: template.ethicalScores.deontologia, explanation: 'Segue deveres e princípios morais absolutos' },
+          { framework: 'virtude', score: template.ethicalScores.virtude, explanation: 'Desenvolve caráter e excelência moral' },
+          { framework: 'consequencialismo', score: template.ethicalScores.consequencialismo, explanation: 'Avalia ações pelas consequências resultantes' },
+          { framework: 'relativismo', score: template.ethicalScores.relativismo, explanation: 'Considera contexto cultural e situacional' },
+        ];
+
+        const valueAnalysis: ValueAnalysis[] = corporateValues.map(value => ({
+          value,
+          alignment: template.valueAlignments[value as keyof typeof template.valueAlignments] || 0,
+          explanation: `Alinhamento com valor corporativo de ${value.toLowerCase()}`,
+        }));
+
+        return {
+          id: String(optIndex + 1),
+          text: template.text,
+          ethicalAnalysis,
+          valueAnalysis,
+          culturalAnalysis: {
+            impact: template.culturalImpact as 'positivo' | 'neutro' | 'negativo',
+            explanation: `Impacto ${template.culturalImpact} na cultura organizacional`,
+            organizationalRisk: template.culturalImpact === 'positivo' ? 20 : template.culturalImpact === 'neutro' ? 50 : 85,
+          },
+          feedback: template.feedback,
+          overallScore: template.score,
+        };
+      }),
     };
-    socket.join(salaId);
-    socket.emit('sala-criada', salaId);
-    io.to(salaId).emit('jogadores-atualizados', salas[salaId].jogadores);
+
+    dilemas.push(dilema);
   });
 
-  socket.on('entrar-sala', ({ salaId, nome }: { salaId: string; nome: string }) => {
-    const sala = salas[salaId];
-    if (!sala || sala.jogadores.length >= 4) {
-      socket.emit('erro-sala', 'Sala cheia ou não existe');
+  return dilemas;
+}
+
+// ============ DATABASE (In-Memory) ============
+const dilemas = generateDilemas();
+const rooms = new Map<string, Room>();
+const gameResponses: GameResponse[] = [];
+
+// ============ FUNÇÃO PARA CALCULAR PERFIL ÉTICO ============
+function calculateEthicalProfile(answers: PlayerAnswer[]): EthicalProfile {
+  const profile = {
+    utilitarismo: 0,
+    deontologia: 0,
+    virtude: 0,
+    consequencialismo: 0,
+    relativismo: 0,
+  };
+
+  answers.forEach(answer => {
+    answer.analysis.ethicalAnalysis.forEach(analysis => {
+      profile[analysis.framework as keyof typeof profile] += analysis.score;
+    });
+  });
+
+  const total = answers.length || 1;
+  Object.keys(profile).forEach(key => {
+    profile[key as keyof typeof profile] = Math.round(profile[key as keyof typeof profile] / total);
+  });
+
+  const dominantFramework = Object.entries(profile).sort((a, b) => b[1] - a[1])[0][0];
+
+  return {
+    ...profile,
+    dominantFramework,
+  };
+}
+
+// ============ ROUTES ============
+app.get('/', (req, res) => {
+  res.json({ message: 'Backend profissional rodando! ✅', dilemas: dilemas.length });
+});
+
+app.get('/dilemas', (req, res) => {
+  res.json(dilemas);
+});
+
+app.get('/dilemas/:id', (req, res) => {
+  const dilema = dilemas.find(d => d.id === req.params.id);
+  if (!dilema) return res.status(404).json({ error: 'Dilema não encontrado' });
+  res.json(dilema);
+});
+
+app.get('/rooms', (req, res) => {
+  const roomsList = Array.from(rooms.values()).map(room => ({
+    id: room.id,
+    name: room.name,
+    players: room.players.length,
+    maxPlayers: room.maxPlayers,
+    difficulty: room.difficulty,
+    status: room.status,
+  }));
+  res.json(roomsList);
+});
+
+app.get('/rooms/:id/responses', (req, res) => {
+  const room = rooms.get(req.params.id);
+  if (!room) return res.status(404).json({ error: 'Sala não encontrada' });
+
+  const responses = gameResponses.filter(r => r.roomId === req.params.id);
+  res.json(responses);
+});
+
+// ============ SOCKET.IO EVENTS ============
+io.on('connection', (socket) => {
+  console.log(`✅ Usuário conectado: ${socket.id}`);
+
+  socket.on('create_room', (data: { playerName: string; maxPlayers: number; difficulty: string }) => {
+    const roomId = `room_${Date.now()}`;
+    const newRoom: Room = {
+      id: roomId,
+      name: `Sala de ${data.playerName}`,
+      creator: socket.id,
+      creatorSocketId: socket.id,
+      players: [
+        {
+          id: socket.id,
+          name: data.playerName,
+          socketId: socket.id,
+          score: 0,
+          answers: [],
+          ethicalProfile: { utilitarismo: 0, deontologia: 0, virtude: 0, consequencialismo: 0, relativismo: 0, dominantFramework: '' },
+        },
+      ],
+      maxPlayers: data.maxPlayers,
+      difficulty: data.difficulty as 'fácil' | 'médio' | 'difícil',
+      status: 'waiting',
+      currentDilemaIndex: 0,
+      createdAt: new Date(),
+    };
+
+    rooms.set(roomId, newRoom);
+    socket.join(roomId);
+    socket.emit('room_created', newRoom);
+    io.emit('rooms_updated', Array.from(rooms.values()));
+    console.log(`📋 Sala criada: ${roomId}`);
+  });
+
+  socket.on('join_room', (data: { roomId: string; playerName: string }) => {
+    const room = rooms.get(data.roomId);
+    if (!room) {
+      socket.emit('error', { message: 'Sala não encontrada' });
       return;
     }
-    sala.jogadores.push({ id: socket.id, nome, valores: { honestidade: 0, empatia: 0, coragem: 0, pragmatismo: 0 }, posicao: 0 });
-    socket.join(salaId);
-    io.to(salaId).emit('jogadores-atualizados', sala.jogadores);
-    socket.emit('entrou-sala', sala);
+
+    if (room.players.length >= room.maxPlayers) {
+      socket.emit('error', { message: 'Sala cheia' });
+      return;
+    }
+
+    const newPlayer: Player = {
+      id: socket.id,
+      name: data.playerName,
+      socketId: socket.id,
+      score: 0,
+      answers: [],
+      ethicalProfile: { utilitarismo: 0, deontologia: 0, virtude: 0, consequencialismo: 0, relativismo: 0, dominantFramework: '' },
+    };
+
+    room.players.push(newPlayer);
+    socket.join(data.roomId);
+    socket.emit('room_joined', room);
+    io.to(data.roomId).emit('player_joined', room);
+    io.emit('rooms_updated', Array.from(rooms.values()));
+    console.log(`👤 ${data.playerName} entrou na sala ${data.roomId}`);
   });
 
-  socket.on('escolha', ({ salaId, escolhaIndex }: { salaId: string; escolhaIndex: number }) => {
-    const sala = salas[salaId];
-    if (!sala || socket.id !== sala.turnoAtual) return;
+  socket.on('start_game', (data: { roomId: string }) => {
+    const room = rooms.get(data.roomId);
+    if (!room || room.creator !== socket.id) {
+      socket.emit('error', { message: 'Não autorizado' });
+      return;
+    }
 
-    const jogador = sala.jogadores.find(j => j.id === socket.id);
-    if (!jogador) return;
+    room.status = 'playing';
+    room.currentDilemaIndex = 0;
+    const currentDilema = dilemas[0];
 
-    // Aplicar efeito do dilema
-    const dilema = dilemas.find(d => d.id === sala.dilemaAtualId);
-    if (dilema && dilema.efeitos[escolhaIndex]) {
-      dilema.efeitos[escolhaIndex].forEach(efeito => {
-        jogador.valores[efeito.valor] += efeito.delta;
+    io.to(data.roomId).emit('game_started', {
+      dilema: currentDilema,
+      roomInfo: {
+        currentDilemaIndex: 1,
+        totalDilemas: dilemas.length,
+      },
+    });
+    console.log(`🎮 Jogo iniciado na sala ${data.roomId}`);
+  });
+
+  socket.on('answer_dilema', (data: { roomId: string; dilemaId: string; optionId: string }) => {
+    const room = rooms.get(data.roomId);
+    if (!room) {
+      socket.emit('error', { message: 'Sala não encontrada' });
+      return;
+    }
+
+    const player = room.players.find(p => p.id === socket.id);
+    if (!player) {
+      socket.emit('error', { message: 'Jogador não encontrado' });
+      return;
+    }
+
+    const dilema = dilemas.find(d => d.id === data.dilemaId);
+    if (!dilema) {
+      socket.emit('error', { message: 'Dilema não encontrado' });
+      return;
+    }
+
+    const selectedOption = dilema.options.find(o => o.id === data.optionId);
+    if (!selectedOption) {
+      socket.emit('error', { message: 'Opção não encontrada' });
+      return;
+    }
+
+    // Register answer
+    player.answers.push({
+      dilemaId: data.dilemaId,
+      optionId: data.optionId,
+      timestamp: new Date(),
+      analysis: selectedOption,
+    });
+
+    player.score += selectedOption.overallScore;
+    player.ethicalProfile = calculateEthicalProfile(player.answers);
+
+    // Register response (only for creator)
+    gameResponses.push({
+      roomId: data.roomId,
+      playerId: player.id,
+      playerName: player.name,
+      dilemaId: data.dilemaId,
+      optionId: data.optionId,
+      analysis: selectedOption,
+      timestamp: new Date(),
+    });
+
+    // Move to next dilema
+    room.currentDilemaIndex++;
+    if (room.currentDilemaIndex < dilemas.length) {
+      const nextDilema = dilemas[room.currentDilemaIndex];
+      io.to(data.roomId).emit('next_dilema', {
+        dilema: nextDilema,
+        roomInfo: {
+          currentDilemaIndex: room.currentDilemaIndex + 1,
+          totalDilemas: dilemas.length,
+        },
+        playerScores: room.players.map(p => ({ name: p.name, score: p.score, profile: p.ethicalProfile })),
+      });
+    } else {
+      // Game finished
+      room.status = 'finished';
+      const ranking = room.players.sort((a, b) => b.score - a.score);
+      io.to(data.roomId).emit('game_finished', {
+        ranking: ranking.map(p => ({ name: p.name, score: p.score, ethicalProfile: p.ethicalProfile })),
       });
     }
 
-    // Avança posição no mapa
-    jogador.posicao += 1;
-
-    // Próximo dilema / turno
-    if (jogador.posicao < dilemas.length) {
-      sala.dilemaAtualId = dilemas[jogador.posicao].id;
-      const proximoJogador = sala.jogadores[(sala.jogadores.indexOf(jogador) + 1) % sala.jogadores.length];
-      sala.turnoAtual = proximoJogador.id;
-    } else {
-      sala.fim = true;
-    }
-
-    io.to(salaId).emit('estado-atualizado', sala);
+    console.log(`📊 ${player.name} respondeu e ganhou ${selectedOption.overallScore} pontos`);
   });
 
   socket.on('disconnect', () => {
-    // Remove jogador de salas
-    for (const salaId in salas) {
-      const sala = salas[salaId];
-      sala.jogadores = sala.jogadores.filter(j => j.id !== socket.id);
-      if (sala.jogadores.length === 0) delete salas[salaId];
-      else io.to(salaId).emit('jogadores-atualizados', sala.jogadores);
+    for (const [roomId, room] of rooms.entries()) {
+      room.players = room.players.filter(p => p.id !== socket.id);
+      if (room.players.length === 0) {
+        rooms.delete(roomId);
+      } else {
+        io.to(roomId).emit('player_left', room);
+      }
     }
+    console.log(`❌ Usuário desconectado: ${socket.id}`);
   });
 });
 
-// API tradicional (fallback)
-app.get('/api/game/start', (req, res) => { /* seu código antigo para single-player */ });
-app.post('/api/game/session/:sessionId/choice', (req, res) => { /* seu código antigo */ });
-
-// Rota simples para testar
-app.get('/', (req: any, res: any) => {
-  res.send('Backend rodando! ✅');
-});
-
+// ============ START SERVER ============
+const PORT = process.env.PORT || 3333;
 server.listen(PORT, () => {
-  console.log(`Servidor rodando em http://localhost:${PORT}`);
+  console.log(`🚀 Backend profissional rodando em http://localhost:${PORT}`);
+  console.log(`📊 ${dilemas.length} dilemas carregados com análise ética completa`);
+  console.log(`✅ Sistema de pontuação, ranking e perfil ético ativado`);
 });
