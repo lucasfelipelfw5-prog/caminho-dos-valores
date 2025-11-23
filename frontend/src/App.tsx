@@ -180,7 +180,7 @@ const App: React.FC = () => {
     <div style={{
       width: '100%',
       height: '100vh',
-      backgroundImage: `url('/splash_bg.png')`,
+      backgroundImage: `url('/public/splash_bg.png')`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       display: 'flex',
@@ -235,7 +235,7 @@ const App: React.FC = () => {
     <div style={{
       width: '100%',
       height: '100vh',
-      backgroundImage: `url('/menu_bg.png')`,
+      backgroundImage: `url('/public/menu_bg.png')`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       display: 'flex',
@@ -325,7 +325,7 @@ const App: React.FC = () => {
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = 'scale(1)';
           }}>
-            <img src="/icon_lantern.png" alt="Casos" style={{
+            <img src="/public/icon_lantern.png" alt="Casos" style={{
               width: '80px',
               height: '80px',
               objectFit: 'contain',
@@ -354,7 +354,7 @@ const App: React.FC = () => {
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = 'scale(1)';
           }}>
-            <img src="/icon_balance.png" alt="Deie Moral" style={{
+            <img src="/public/icon_balance.png" alt="Deie Moral" style={{
               width: '80px',
               height: '80px',
               objectFit: 'contain',
@@ -383,7 +383,7 @@ const App: React.FC = () => {
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = 'scale(1)';
           }}>
-            <img src="/icon_heart.png" alt="Emocional" style={{
+            <img src="/public/icon_heart.png" alt="Emocional" style={{
               width: '80px',
               height: '80px',
               objectFit: 'contain',
