@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { io, Socket } from "socket.io-client";
 import { DefaultEventsMap } from "@socket.io/component-emitter";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3333";
+const SOCKET_URL = "https://caminho-dos-valores.onrender.com";
 
 // --- Paleta de Cores ---
 const COLORS = {
