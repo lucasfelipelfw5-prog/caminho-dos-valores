@@ -72,7 +72,7 @@ const App: React.FC = () => {
 
   // Initialize Socket.io
   useEffect(() => {
-    const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3333';
+    const backendUrl = 'http://localhost:3333';
     const newSocket = io(backendUrl, {
       reconnection: true,
       reconnectionDelay: 1000,
