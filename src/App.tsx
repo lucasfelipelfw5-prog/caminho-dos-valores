@@ -1,125 +1,44 @@
 import React, { useState, useEffect } from 'react';
-import { io, Socket } from 'socket.io-client';
 
-type Screen = 'splash' | 'menu' | 'lobby' | 'game' | 'analysis' | 'end';
+type Screen = 'splash' | 'menu' | 'lobby' | 'game' | 'end';
 
-interface EthicalAnalysis {
-  framework: string;
-  score: number;
-  explanation: string;
-}
-
-interface ValueAnalysis {
-  value: string;
-  alignment: number;
-  explanation: string;
-}
-
-interface CulturalAnalysis {
-  impact: string;
-  explanation: string;
-  organizationalRisk: number;
-}
-
-interface Option {
+interface Room {
   id: string;
-  text: string;
-  ethicalAnalysis: EthicalAnalysis[];
-  valueAnalysis: ValueAnalysis[];
-  culturalAnalysis: CulturalAnalysis;
-  feedback: string;
-  overallScore: number;
+  name: string;
+  players: number;
+  maxPlayers: number;
+  difficulty: string;
 }
 
 interface Dilema {
   id: string;
   title: string;
   description: string;
-  context: string;
-  category: string;
-  difficulty: string;
-  options: Option[];
-  learningObjective: string;
-}
-
-interface Room {
-  id: string;
-  name: string;
-  players: Array<{ name: string; score: number }>;
-  maxPlayers: number;
-  difficulty: string;
-  status: string;
-}
-
-interface Player {
-  name: string;
-  score: number;
-  ethicalProfile?: {
-    utilitarismo: number;
-    deontologia: number;
-    virtude: number;
-    consequencialismo: number;
-    relativismo: number;
-    dominantFramework: string;
-  };
+  options: Array<{
+    id: string;
+    text: string;
+  }>;
 }
 
 const App: React.FC = () => {
   const [screen, setScreen] = useState<Screen>('splash');
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [playerName, setPlayerName] = useState('');
-  const [rooms, setRooms] = useState<Room[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([
+    { id: '1', name: 'Sala 1', players: 1, maxPlayers: 4, difficulty: 'fácil' },
+    { id: '2', name: 'Sala 2', players: 1, maxPlayers: 5, difficulty: 'médio' },
+    { id: '3', name: 'Sala 3', players: 1, maxPlayers: 6, difficulty: 'difícil' },
+  ]);
   const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
-  const [currentDilema, setCurrentDilema] = useState<Dilema | null>(null);
-  const [selectedOption, setSelectedOption] = useState<Option | null>(null);
-  const [showAnalysis, setShowAnalysis] = useState(false);
-  const [roomInfo, setRoomInfo] = useState<{ currentDilemaIndex: number; totalDilemas: number } | null>(null);
-  const [playerScores, setPlayerScores] = useState<Player[]>([]);
-  const [finalRanking, setFinalRanking] = useState<Player[]>([]);
-
-  // Initialize Socket.io
-  useEffect(() => {
-    const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3333';
-    const newSocket = io(backendUrl);
-
-    newSocket.on('connect', () => {
-      console.log('✅ Conectado ao backend');
-    });
-
-    newSocket.on('rooms_updated', (updatedRooms: Room[]) => {
-      setRooms(updatedRooms);
-    });
-
-    newSocket.on('game_started', (data: { dilema: Dilema; roomInfo: any }) => {
-      setCurrentDilema(data.dilema);
-      setRoomInfo(data.roomInfo);
-      setScreen('game');
-    });
-
-    newSocket.on('next_dilema', (data: { dilema: Dilema; roomInfo: any; playerScores: Player[] }) => {
-      setShowAnalysis(false);
-      setSelectedOption(null);
-      setCurrentDilema(data.dilema);
-      setRoomInfo(data.roomInfo);
-      setPlayerScores(data.playerScores);
-    });
-
-    newSocket.on('game_finished', (data: { ranking: Player[] }) => {
-      setFinalRanking(data.ranking);
-      setScreen('end');
-    });
-
-    newSocket.on('error', (error: any) => {
-      console.error('Erro:', error.message);
-      alert(error.message);
-    });
-
-    setSocket(newSocket);
-
-    return () => {
-      newSocket.disconnect();
-    };
-  }, []);
+  const [currentDilema, setCurrentDilema] = useState<Dilema | null>({
+    id: '1',
+    title: 'O Dilema do Trem',
+    description: 'Um trem descontrolado está vindo em sua direção. Você pode puxar uma alavanca para desviar o trem para outro trilho, mas nesse trilho há uma pessoa. O que você faz?',
+    options: [
+      { id: '1', text: 'Puxar a alavanca e desviar o trem' },
+      { id: '2', text: 'Não fazer nada e deixar o trem seguir seu curso' },
+      { id: '3', text: 'Tentar avisar as pessoas' },
+    ],
+  });
 
   // Splash screen timer
   useEffect(() => {
@@ -254,30 +173,62 @@ const App: React.FC = () => {
           gap: '20px',
           marginBottom: '40px',
         }}>
-          {[
-            { src: '/icon_etica.png', label: 'Ética' },
-            { src: '/icon_valores.png', label: 'Valores' },
-            { src: '/icon_cultura.png', label: 'Cultura' },
-          ].map((icon, idx) => (
-            <div key={idx} style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '10px',
-            }}>
-              <img src={icon.src} alt={icon.label} style={{
-                width: '80px',
-                height: '80px',
-                objectFit: 'contain',
-              }} />
-              <span style={{
-                color: '#FFD93D',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                fontFamily: 'Poppins, sans-serif',
-              }}>{icon.label}</span>
-            </div>
-          ))}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '10px',
+          }}>
+            <img src="/icon_lantern.png" alt="Etica" style={{
+              width: '80px',
+              height: '80px',
+              objectFit: 'contain',
+            }} />
+            <span style={{
+              color: '#FFD93D',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              fontFamily: 'Poppins, sans-serif',
+            }}>Etica</span>
+          </div>
+
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '10px',
+          }}>
+            <img src="/icon_balance.png" alt="Valores" style={{
+              width: '80px',
+              height: '80px',
+              objectFit: 'contain',
+            }} />
+            <span style={{
+              color: '#FFD93D',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              fontFamily: 'Poppins, sans-serif',
+            }}>Valores</span>
+          </div>
+
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '10px',
+          }}>
+            <img src="/icon_heart.png" alt="Cultura" style={{
+              width: '80px',
+              height: '80px',
+              objectFit: 'contain',
+            }} />
+            <span style={{
+              color: '#FFD93D',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              fontFamily: 'Poppins, sans-serif',
+            }}>Cultura</span>
+          </div>
         </div>
 
         <div style={{
@@ -286,11 +237,7 @@ const App: React.FC = () => {
           gap: '15px',
         }}>
           <button
-            onClick={() => {
-              if (playerName.trim()) {
-                socket?.emit('create_room', { playerName, maxPlayers: 4, difficulty: 'médio' });
-              }
-            }}
+            onClick={() => setScreen('lobby')}
             style={{
               padding: '15px 30px',
               fontSize: '18px',
@@ -302,6 +249,12 @@ const App: React.FC = () => {
               borderRadius: '10px',
               cursor: 'pointer',
               transition: 'all 0.3s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-3px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
             Criar Sala
@@ -320,6 +273,12 @@ const App: React.FC = () => {
               borderRadius: '10px',
               cursor: 'pointer',
               transition: 'all 0.3s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-3px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
             Entrar em Sala
@@ -365,20 +324,25 @@ const App: React.FC = () => {
             borderRadius: '10px',
             border: '2px solid #FFD93D',
             cursor: 'pointer',
+            transition: 'all 0.3s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-5px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
           }}>
             <h3 style={{ color: '#FFD93D', marginBottom: '10px' }}>{room.name}</h3>
             <p style={{ color: '#FFFFFF', marginBottom: '5px' }}>
-              Jogadores: {room.players.length}/{room.maxPlayers}
+              Jogadores: {room.players}/{room.maxPlayers}
             </p>
             <p style={{ color: '#FFFFFF', marginBottom: '15px' }}>
               Dificuldade: {room.difficulty}
             </p>
             <button
               onClick={() => {
-                if (playerName.trim()) {
-                  socket?.emit('join_room', { roomId: room.id, playerName });
-                  setCurrentRoom(room);
-                }
+                setCurrentRoom(room);
+                setScreen('game');
               }}
               style={{
                 width: '100%',
@@ -426,54 +390,29 @@ const App: React.FC = () => {
       justifyContent: 'center',
       padding: '40px',
       fontFamily: 'Poppins, sans-serif',
-      overflow: 'auto',
     }}>
-      {currentDilema && !showAnalysis && (
+      {currentDilema && (
         <div style={{
           maxWidth: '800px',
           width: '100%',
         }}>
-          <div style={{
-            marginBottom: '20px',
-            color: '#FFD93D',
-            fontSize: '14px',
-          }}>
-            Dilema {roomInfo?.currentDilemaIndex} de {roomInfo?.totalDilemas}
-          </div>
-
           <h1 style={{
             color: '#FFD93D',
             fontSize: '32px',
-            marginBottom: '20px',
+            marginBottom: '30px',
             textAlign: 'center',
           }}>
             {currentDilema.title}
           </h1>
-
-          <div style={{
-            backgroundColor: 'rgba(108, 99, 255, 0.2)',
-            padding: '20px',
-            borderRadius: '10px',
-            marginBottom: '30px',
-            border: '1px solid #FFD93D',
+          <p style={{
+            color: '#FFFFFF',
+            fontSize: '18px',
+            marginBottom: '40px',
+            textAlign: 'center',
+            lineHeight: '1.6',
           }}>
-            <p style={{
-              color: '#FFFFFF',
-              fontSize: '16px',
-              lineHeight: '1.6',
-              marginBottom: '15px',
-            }}>
-              {currentDilema.description}
-            </p>
-            <p style={{
-              color: '#FFD93D',
-              fontSize: '14px',
-              fontStyle: 'italic',
-            }}>
-              {currentDilema.context}
-            </p>
-          </div>
-
+            {currentDilema.description}
+          </p>
           <div style={{
             display: 'grid',
             gridTemplateColumns: '1fr',
@@ -482,15 +421,7 @@ const App: React.FC = () => {
             {currentDilema.options.map((option) => (
               <button
                 key={option.id}
-                onClick={() => {
-                  setSelectedOption(option);
-                  setShowAnalysis(true);
-                  socket?.emit('answer_dilema', {
-                    roomId: currentRoom?.id,
-                    dilemaId: currentDilema.id,
-                    optionId: option.id,
-                  });
-                }}
+                onClick={() => setScreen('end')}
                 style={{
                   padding: '20px',
                   backgroundColor: 'rgba(108, 99, 255, 0.3)',
@@ -501,7 +432,14 @@ const App: React.FC = () => {
                   cursor: 'pointer',
                   transition: 'all 0.3s ease',
                   fontFamily: 'Poppins, sans-serif',
-                  textAlign: 'left',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 217, 61, 0.2)';
+                  e.currentTarget.style.transform = 'translateX(10px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(108, 99, 255, 0.3)';
+                  e.currentTarget.style.transform = 'translateX(0)';
                 }}
               >
                 {option.text}
@@ -510,71 +448,70 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+    </div>
+  );
 
-      {showAnalysis && selectedOption && (
-        <div style={{
-          maxWidth: '900px',
-          width: '100%',
-          maxHeight: '90vh',
-          overflow: 'auto',
-        }}>
-          <h2 style={{
-            color: '#FFD93D',
-            marginBottom: '20px',
-            textAlign: 'center',
-          }}>
-            Análise da Sua Resposta
-          </h2>
+  // Render End
+  const renderEnd = () => (
+    <div style={{
+      width: '100%',
+      height: '100vh',
+      backgroundColor: '#2D1B69',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '40px',
+      fontFamily: 'Poppins, sans-serif',
+    }}>
+      <h1 style={{
+        color: '#FFD93D',
+        fontSize: '48px',
+        marginBottom: '30px',
+      }}>
+        Jogo Finalizado!
+      </h1>
+      <p style={{
+        color: '#FFFFFF',
+        fontSize: '20px',
+        marginBottom: '30px',
+        textAlign: 'center',
+      }}>
+        Obrigado por jogar Caminho dos Valores!
+      </p>
+      <button
+        onClick={() => setScreen('menu')}
+        style={{
+          padding: '15px 30px',
+          backgroundColor: '#FFD93D',
+          color: '#2D1B69',
+          border: 'none',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          fontSize: '18px',
+          fontWeight: 'bold',
+        }}
+      >
+        Voltar ao Menu
+      </button>
+    </div>
+  );
 
-          <div style={{
-            backgroundColor: 'rgba(108, 99, 255, 0.2)',
-            padding: '20px',
-            borderRadius: '10px',
-            marginBottom: '20px',
-            border: '1px solid #FFD93D',
-          }}>
-            <p style={{
-              color: '#FFFFFF',
-              fontSize: '16px',
-              lineHeight: '1.6',
-            }}>
-              {selectedOption.feedback}
-            </p>
-          </div>
+  // Main render
+  switch (screen) {
+    case 'splash':
+      return renderSplash();
+    case 'menu':
+      return renderMenu();
+    case 'lobby':
+      return renderLobby();
+    case 'game':
+      return renderGame();
+    case 'end':
+      return renderEnd();
+    default:
+      return renderMenu();
+  }
+};
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '20px',
-            marginBottom: '20px',
-          }}>
-            <div style={{
-              backgroundColor: 'rgba(108, 99, 255, 0.2)',
-              padding: '15px',
-              borderRadius: '10px',
-              border: '1px solid #FFD93D',
-            }}>
-              <h3 style={{ color: '#FFD93D', marginBottom: '10px' }}>Análise Ética</h3>
-              {selectedOption.ethicalAnalysis.map((analysis, idx) => (
-                <div key={idx} style={{ marginBottom: '10px' }}>
-                  <p style={{ color: '#FFFFFF', margin: '5px 0' }}>
-                    <strong>{analysis.framework}</strong>: {analysis.score}/100
-                  </p>
-                  <p style={{ color: '#DDD', fontSize: '12px', margin: '0' }}>
-                    {analysis.explanation}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div style={{
-              backgroundColor: 'rgba(108, 99, 255, 0.2)',
-              padding: '15px',
-              borderRadius: '10px',
-              border: '1px solid #FFD93D',
-            }}>
-              <h3 style={{ color: '#FFD93D', marginBottom: '10px' }}>Valores Corporativos</h3>
-              {selectedOption.valueAnalysis.slice(0, 5).map((value, idx) => (
-                <div key={idx} style={{ marginBottom: '8px' }}>
-                  <p style={{ color: '#FFFFFF', margin: '3px 0', fon
-(Content truncated due to size limit. Use page ranges or line ranges to read remaining content)
+export default App;
