@@ -1,44 +1,123 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, CSSProperties } from 'react';
+import { io, Socket } from 'socket.io-client';
 
 type Screen = 'splash' | 'menu' | 'lobby' | 'game' | 'end';
 
-interface Room {
+interface EthicalAnalysis {
+  framework: string;
+  score: number;
+  explanation: string;
+}
+
+interface ValueAnalysis {
+  value: string;
+  alignment: number;
+  explanation: string;
+}
+
+interface Option {
   id: string;
-  name: string;
-  players: number;
-  maxPlayers: number;
-  difficulty: string;
+  text: string;
+  feedback: string;
+  overallScore: number;
+  ethicalAnalysis: EthicalAnalysis[];
+  valueAnalysis: ValueAnalysis[];
+  culturalImpact: string;
 }
 
 interface Dilema {
   id: string;
   title: string;
   description: string;
-  options: Array<{
-    id: string;
-    text: string;
-  }>;
+  context: string;
+  category: string;
+  options: Option[];
+}
+
+interface Player {
+  id: string;
+  name: string;
+  score: number;
+  ethicalProfile?: {
+    utilitarismo: number;
+    deontologia: number;
+    virtude: number;
+    consequencialismo: number;
+    relativismo: number;
+    dominantFramework: string;
+  };
+}
+
+interface Room {
+  id: string;
+  name: string;
+  players: Player[];
+  maxPlayers: number;
+  difficulty: string;
+  status: string;
 }
 
 const App: React.FC = () => {
   const [screen, setScreen] = useState<Screen>('splash');
+  const [socket, setSocket] = useState<Socket | null>(null);
   const [playerName, setPlayerName] = useState('');
-  const [rooms, setRooms] = useState<Room[]>([
-    { id: '1', name: 'Sala do Lucas', players: 2, maxPlayers: 4, difficulty: 'médio' },
-    { id: '2', name: 'Sala dos Amigos', players: 1, maxPlayers: 6, difficulty: 'fácil' },
-    { id: '3', name: 'Desafio Extremo', players: 3, maxPlayers: 4, difficulty: 'difícil' },
-  ]);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
-  const [currentDilema, setCurrentDilema] = useState<Dilema | null>({
-    id: '1',
-    title: 'O Dilema do Trem',
-    description: 'Um trem descontrolado está vindo em sua direção. Você pode puxar uma alavanca para desviar o trem para outro trilho, mas nesse trilho há uma pessoa. O que você faz?',
-    options: [
-      { id: '1', text: 'Puxar a alavanca e desviar o trem' },
-      { id: '2', text: 'Não fazer nada e deixar o trem seguir seu curso' },
-      { id: '3', text: 'Tentar avisar as pessoas' },
-    ],
-  });
+  const [currentDilema, setCurrentDilema] = useState<Dilema | null>(null);
+  const [selectedOption, setSelectedOption] = useState<Option | null>(null);
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [roomInfo, setRoomInfo] = useState<{ currentDilemaIndex: number; totalDilemas: number } | null>(null);
+  const [playerScores, setPlayerScores] = useState<Player[]>([]);
+  const [finalRanking, setFinalRanking] = useState<Player[]>([]);
+
+  // Initialize Socket.io
+  useEffect(() => {
+    const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3333';
+    const newSocket = io(backendUrl, {
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 5,
+    });
+
+    newSocket.on('connect', () => {
+      console.log('✅ Conectado ao backend');
+    });
+
+    newSocket.on('rooms_updated', (updatedRooms: Room[]) => {
+      setRooms(updatedRooms);
+    });
+
+    newSocket.on('game_started', (data: { dilema: Dilema; roomInfo: any }) => {
+      setCurrentDilema(data.dilema);
+      setRoomInfo(data.roomInfo);
+      setScreen('game');
+    });
+
+    newSocket.on('next_dilema', (data: { dilema: Dilema; roomInfo: any; playerScores: Player[] }) => {
+      setShowAnalysis(false);
+      setSelectedOption(null);
+      setCurrentDilema(data.dilema);
+      setRoomInfo(data.roomInfo);
+      setPlayerScores(data.playerScores);
+    });
+
+    newSocket.on('game_finished', (data: { ranking: Player[] }) => {
+      setFinalRanking(data.ranking);
+      setScreen('end');
+    });
+
+    newSocket.on('error', (error: any) => {
+      console.error('Erro:', error.message);
+      alert(error.message);
+    });
+
+    setSocket(newSocket);
+
+    return () => {
+      newSocket.disconnect();
+    };
+  }, []);
 
   // Splash screen timer
   useEffect(() => {
@@ -173,62 +252,30 @@ const App: React.FC = () => {
           gap: '20px',
           marginBottom: '40px',
         }}>
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '10px',
-          }}>
-            <img src="/icon_lantern.png" alt="Casos" style={{
-              width: '80px',
-              height: '80px',
-              objectFit: 'contain',
-            }} />
-            <span style={{
-              color: '#FFD93D',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              fontFamily: 'Poppins, sans-serif',
-            }}>Casos</span>
-          </div>
-
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '10px',
-          }}>
-            <img src="/icon_balance.png" alt="Deie Moral" style={{
-              width: '80px',
-              height: '80px',
-              objectFit: 'contain',
-            }} />
-            <span style={{
-              color: '#FFD93D',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              fontFamily: 'Poppins, sans-serif',
-            }}>Deie Moral</span>
-          </div>
-
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '10px',
-          }}>
-            <img src="/icon_heart.png" alt="Emocional" style={{
-              width: '80px',
-              height: '80px',
-              objectFit: 'contain',
-            }} />
-            <span style={{
-              color: '#FFD93D',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              fontFamily: 'Poppins, sans-serif',
-            }}>Emocional</span>
-          </div>
+          {[
+            { src: '/icon_etica.png', label: 'Ética' },
+            { src: '/icon_valores.png', label: 'Valores' },
+            { src: '/icon_cultura.png', label: 'Cultura' },
+          ].map((icon, idx) => (
+            <div key={idx} style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '10px',
+            }}>
+              <img src={icon.src} alt={icon.label} style={{
+                width: '80px',
+                height: '80px',
+                objectFit: 'contain',
+              }} />
+              <span style={{
+                color: '#FFD93D',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                fontFamily: 'Poppins, sans-serif',
+              }}>{icon.label}</span>
+            </div>
+          ))}
         </div>
 
         <div style={{
@@ -237,7 +284,11 @@ const App: React.FC = () => {
           gap: '15px',
         }}>
           <button
-            onClick={() => setScreen('lobby')}
+            onClick={() => {
+              if (playerName.trim() && socket) {
+                socket.emit('create_room', { playerName, maxPlayers: 4, difficulty: 'médio' });
+              }
+            }}
             style={{
               padding: '15px 30px',
               fontSize: '18px',
@@ -249,12 +300,6 @@ const App: React.FC = () => {
               borderRadius: '10px',
               cursor: 'pointer',
               transition: 'all 0.3s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-3px)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
             Criar Sala
@@ -273,12 +318,6 @@ const App: React.FC = () => {
               borderRadius: '10px',
               cursor: 'pointer',
               transition: 'all 0.3s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-3px)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
             Entrar em Sala
@@ -324,25 +363,20 @@ const App: React.FC = () => {
             borderRadius: '10px',
             border: '2px solid #FFD93D',
             cursor: 'pointer',
-            transition: 'all 0.3s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-5px)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
           }}>
             <h3 style={{ color: '#FFD93D', marginBottom: '10px' }}>{room.name}</h3>
             <p style={{ color: '#FFFFFF', marginBottom: '5px' }}>
-              Jogadores: {room.players}/{room.maxPlayers}
+              Jogadores: {room.players.length}/{room.maxPlayers}
             </p>
             <p style={{ color: '#FFFFFF', marginBottom: '15px' }}>
               Dificuldade: {room.difficulty}
             </p>
             <button
               onClick={() => {
-                setCurrentRoom(room);
-                setScreen('game');
+                if (playerName.trim() && socket) {
+                  socket.emit('join_room', { roomId: room.id, playerName });
+                  setCurrentRoom(room);
+                }
               }}
               style={{
                 width: '100%',
@@ -382,7 +416,7 @@ const App: React.FC = () => {
   const renderGame = () => (
     <div style={{
       width: '100%',
-      height: '100vh',
+      minHeight: '100vh',
       backgroundColor: '#2D1B69',
       display: 'flex',
       flexDirection: 'column',
@@ -390,29 +424,54 @@ const App: React.FC = () => {
       justifyContent: 'center',
       padding: '40px',
       fontFamily: 'Poppins, sans-serif',
+      overflow: 'auto',
     }}>
-      {currentDilema && (
+      {currentDilema && !showAnalysis && (
         <div style={{
           maxWidth: '800px',
           width: '100%',
         }}>
+          <div style={{
+            marginBottom: '20px',
+            color: '#FFD93D',
+            fontSize: '14px',
+          }}>
+            Dilema {roomInfo?.currentDilemaIndex} de {roomInfo?.totalDilemas}
+          </div>
+
           <h1 style={{
             color: '#FFD93D',
             fontSize: '32px',
-            marginBottom: '30px',
+            marginBottom: '20px',
             textAlign: 'center',
           }}>
             {currentDilema.title}
           </h1>
-          <p style={{
-            color: '#FFFFFF',
-            fontSize: '18px',
-            marginBottom: '40px',
-            textAlign: 'center',
-            lineHeight: '1.6',
+
+          <div style={{
+            backgroundColor: 'rgba(108, 99, 255, 0.2)',
+            padding: '20px',
+            borderRadius: '10px',
+            marginBottom: '30px',
+            border: '1px solid #FFD93D',
           }}>
-            {currentDilema.description}
-          </p>
+            <p style={{
+              color: '#FFFFFF',
+              fontSize: '16px',
+              lineHeight: '1.6',
+              marginBottom: '15px',
+            }}>
+              {currentDilema.description}
+            </p>
+            <p style={{
+              color: '#FFD93D',
+              fontSize: '14px',
+              fontStyle: 'italic',
+            }}>
+              {currentDilema.context}
+            </p>
+          </div>
+
           <div style={{
             display: 'grid',
             gridTemplateColumns: '1fr',
@@ -421,7 +480,17 @@ const App: React.FC = () => {
             {currentDilema.options.map((option) => (
               <button
                 key={option.id}
-                onClick={() => setScreen('end')}
+                onClick={() => {
+                  setSelectedOption(option);
+                  setShowAnalysis(true);
+                  if (socket && currentRoom) {
+                    socket.emit('answer_dilema', {
+                      roomId: currentRoom.id,
+                      dilemaId: currentDilema.id,
+                      optionId: option.id,
+                    });
+                  }
+                }}
                 style={{
                   padding: '20px',
                   backgroundColor: 'rgba(108, 99, 255, 0.3)',
@@ -432,20 +501,123 @@ const App: React.FC = () => {
                   cursor: 'pointer',
                   transition: 'all 0.3s ease',
                   fontFamily: 'Poppins, sans-serif',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 217, 61, 0.2)';
-                  e.currentTarget.style.transform = 'translateX(10px)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(108, 99, 255, 0.3)';
-                  e.currentTarget.style.transform = 'translateX(0)';
+                  textAlign: 'left',
                 }}
               >
                 {option.text}
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {showAnalysis && selectedOption && (
+        <div style={{
+          maxWidth: '900px',
+          width: '100%',
+          maxHeight: '90vh',
+          overflow: 'auto',
+        }}>
+          <h2 style={{
+            color: '#FFD93D',
+            marginBottom: '20px',
+            textAlign: 'center',
+          }}>
+            Análise da Sua Resposta
+          </h2>
+
+          <div style={{
+            backgroundColor: 'rgba(108, 99, 255, 0.2)',
+            padding: '20px',
+            borderRadius: '10px',
+            marginBottom: '20px',
+            border: '1px solid #FFD93D',
+          }}>
+            <p style={{
+              color: '#FFFFFF',
+              fontSize: '16px',
+              lineHeight: '1.6',
+            }}>
+              {selectedOption.feedback}
+            </p>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '20px',
+            marginBottom: '20px',
+          }}>
+            <div style={{
+              backgroundColor: 'rgba(108, 99, 255, 0.2)',
+              padding: '15px',
+              borderRadius: '10px',
+              border: '1px solid #FFD93D',
+            }}>
+              <h3 style={{ color: '#FFD93D', marginBottom: '10px' }}>Análise Ética</h3>
+              {selectedOption.ethicalAnalysis.map((analysis, idx) => (
+                <div key={idx} style={{ marginBottom: '10px' }}>
+                  <p style={{ color: '#FFFFFF', margin: '5px 0' }}>
+                    <strong>{analysis.framework}</strong>: {analysis.score}/100
+                  </p>
+                  <p style={{ color: '#DDD', fontSize: '12px', margin: '0' }}>
+                    {analysis.explanation}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div style={{
+              backgroundColor: 'rgba(108, 99, 255, 0.2)',
+              padding: '15px',
+              borderRadius: '10px',
+              border: '1px solid #FFD93D',
+            }}>
+              <h3 style={{ color: '#FFD93D', marginBottom: '10px' }}>Valores Corporativos</h3>
+              {selectedOption.valueAnalysis.slice(0, 5).map((value, idx) => (
+                <div key={idx} style={{ marginBottom: '8px' }}>
+                  <p style={{ color: '#FFFFFF', margin: '3px 0', fontSize: '14px' }}>
+                    <strong>{value.value}</strong>: {value.alignment > 0 ? '+' : ''}{value.alignment}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{
+            textAlign: 'center',
+            color: '#FFD93D',
+            fontSize: '18px',
+            marginBottom: '20px',
+          }}>
+            Pontuação: <strong>{selectedOption.overallScore}</strong>
+          </div>
+
+          {playerScores.length > 0 && (
+            <div style={{
+              backgroundColor: 'rgba(108, 99, 255, 0.2)',
+              padding: '15px',
+              borderRadius: '10px',
+              border: '1px solid #FFD93D',
+              marginBottom: '20px',
+            }}>
+              <h3 style={{ color: '#FFD93D', marginBottom: '10px' }}>Ranking Atual</h3>
+              {playerScores.map((player, idx) => (
+                <div key={idx} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  color: '#FFFFFF',
+                  marginBottom: '8px',
+                  padding: '8px',
+                  backgroundColor: 'rgba(255, 217, 61, 0.1)',
+                  borderRadius: '5px',
+                }}>
+                  <span>{idx + 1}. {player.name}</span>
+                  <span>{player.score} pts</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -455,7 +627,7 @@ const App: React.FC = () => {
   const renderEnd = () => (
     <div style={{
       width: '100%',
-      height: '100vh',
+      minHeight: '100vh',
       backgroundColor: '#2D1B69',
       display: 'flex',
       flexDirection: 'column',
@@ -463,24 +635,88 @@ const App: React.FC = () => {
       justifyContent: 'center',
       padding: '40px',
       fontFamily: 'Poppins, sans-serif',
+      overflow: 'auto',
     }}>
       <h1 style={{
         color: '#FFD93D',
         fontSize: '48px',
         marginBottom: '30px',
       }}>
-        Jogo Finalizado!
+        🏆 Jogo Finalizado!
       </h1>
-      <p style={{
-        color: '#FFFFFF',
-        fontSize: '20px',
+
+      <div style={{
+        maxWidth: '600px',
+        width: '100%',
         marginBottom: '30px',
-        textAlign: 'center',
       }}>
-        Obrigado por jogar Caminho dos Valores!
-      </p>
+        <h2 style={{
+          color: '#FFD93D',
+          marginBottom: '20px',
+          textAlign: 'center',
+        }}>
+          Ranking Final
+        </h2>
+
+        {finalRanking.map((player, idx) => (
+          <div key={idx} style={{
+            backgroundColor: idx === 0 ? 'rgba(255, 217, 61, 0.2)' : 'rgba(108, 99, 255, 0.2)',
+            padding: '20px',
+            marginBottom: '15px',
+            borderRadius: '10px',
+            border: `2px solid ${idx === 0 ? '#FFD93D' : '#6C63FF'}`,
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '10px',
+            }}>
+              <h3 style={{ color: '#FFD93D', margin: 0 }}>
+                {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`} {player.name}
+              </h3>
+              <span style={{ color: '#FFD93D', fontSize: '24px', fontWeight: 'bold' }}>
+                {player.score} pts
+              </span>
+            </div>
+
+            {player.ethicalProfile && (
+              <div style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                padding: '10px',
+                borderRadius: '5px',
+                fontSize: '12px',
+              }}>
+                <p style={{ color: '#DDD', margin: '5px 0' }}>
+                  <strong>Perfil Ético:</strong> {player.ethicalProfile.dominantFramework}
+                </p>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '5px',
+                  color: '#DDD',
+                }}>
+                  <span>Utilitarismo: {player.ethicalProfile.utilitarismo}</span>
+                  <span>Deontologia: {player.ethicalProfile.deontologia}</span>
+                  <span>Virtude: {player.ethicalProfile.virtude}</span>
+                  <span>Consequencialismo: {player.ethicalProfile.consequencialismo}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
       <button
-        onClick={() => setScreen('menu')}
+        onClick={() => {
+          setScreen('menu');
+          setPlayerName('');
+          setCurrentDilema(null);
+          setSelectedOption(null);
+          setShowAnalysis(false);
+          setPlayerScores([]);
+          setFinalRanking([]);
+        }}
         style={{
           padding: '15px 30px',
           backgroundColor: '#FFD93D',
