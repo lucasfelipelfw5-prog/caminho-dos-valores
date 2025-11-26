@@ -72,7 +72,7 @@ const App: React.FC = () => {
 
   // Initialize Socket.io
   useEffect(() => {
-    const backendUrl = 'http://localhost:3333';
+    const backendUrl = 'https://caminho-dos-valores.onrender.com';
     const newSocket = io(backendUrl, {
       reconnection: true,
       reconnectionDelay: 1000,
