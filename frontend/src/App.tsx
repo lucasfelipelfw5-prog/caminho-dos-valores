@@ -1,85 +1,31 @@
-import React, { useState, useEffect, CSSProperties } from 'react';
+import React, { useState, useEffect } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { Room, Dilema, Option, Player } from '../../backend/src/types/types';
 
-type Screen = 'splash' | 'menu' | 'lobby' | 'game' | 'end';
-
-interface EthicalAnalysis {
-  framework: string;
-  score: number;
-  explanation: string;
-}
-
-interface ValueAnalysis {
-  value: string;
-  alignment: number;
-  explanation: string;
-}
-
-interface Option {
-  id: string;
-  text: string;
-  feedback: string;
-  overallScore: number;
-  ethicalAnalysis: EthicalAnalysis[];
-  valueAnalysis: ValueAnalysis[];
-  culturalImpact: string;
-}
-
-interface Dilema {
-  id: string;
-  title: string;
-  description: string;
-  context: string;
-  category: string;
-  options: Option[];
-}
-
-interface Player {
-  id: string;
-  name: string;
-  score: number;
-  ethicalProfile?: {
-    utilitarismo: number;
-    deontologia: number;
-    virtude: number;
-    consequencialismo: number;
-    relativismo: number;
-    dominantFramework: string;
-  };
-}
-
-interface Room {
-  id: string;
-  name: string;
-  players: Player[];
-  maxPlayers: number;
-  difficulty: string;
-  status: string;
-}
+type Screen = 'splash' | 'menu' | 'lobby' | 'room_lobby' | 'game' | 'end';
 
 const App = () => {
   const [screen, setScreen] = useState<Screen>('splash');
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [playerName, setPlayerName] = useState('');
+  const [playerName, setPlayerName] = useState<string>('');
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [maxPlayers, setMaxPlayers] = useState<number>(4);
+  const [difficulty, setDifficulty] = useState<string>('médio');
+  const [gameMode, setGameMode] = useState<'Padrão' | 'Rápido' | 'Personalizado'>('Padrão');
+  const [totalRounds, setTotalRounds] = useState<number>(5);
+  const [isPrivate, setIsPrivate] = useState<boolean>(false);
   const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
-  const [roomIdToJoin, setRoomIdToJoin] = useState('');
+  const [roomIdToJoin, setRoomIdToJoin] = useState<string>('');
   const [currentDilema, setCurrentDilema] = useState<Dilema | null>(null);
   const [selectedOption, setSelectedOption] = useState<Option | null>(null);
-  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [showAnalysis, setShowAnalysis] = useState<boolean>(false);
   const [roomInfo, setRoomInfo] = useState<{ currentDilemaIndex: number; totalDilemas: number } | null>(null);
   const [playerScores, setPlayerScores] = useState<Player[]>([]);
   const [finalRanking, setFinalRanking] = useState<Player[]>([]);
 
-  // Initialize Socket.io
   useEffect(() => {
     const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://caminho-dos-valores.onrender.com';
-    const newSocket = io(backendUrl, {
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5,
-    });
+    const newSocket = io(backendUrl, { reconnection: true });
 
     newSocket.on('connect', () => {
       console.log('✅ Conectado ao backend');
@@ -89,30 +35,30 @@ const App = () => {
       setRooms(updatedRooms);
     });
 
-    newSocket.on('game_started', (data: { dilema: Dilema; roomInfo: any }) => {
-      setCurrentDilema(data.dilema);
-      setRoomInfo(data.roomInfo);
+    newSocket.on('room_updated', (room: Room) => {
+      setCurrentRoom(room);
+      if (room.status === 'waiting') {
+        setScreen('room_lobby');
+      }
+    });
+
+    newSocket.on('game_started', ({ dilema, roomInfo }: { dilema: Dilema; roomInfo: any }) => {
+      setCurrentDilema(dilema);
+      setRoomInfo(roomInfo);
       setScreen('game');
     });
 
-    newSocket.on('next_dilema', (data: { dilema: Dilema; roomInfo: any; playerScores: Player[] }) => {
+    newSocket.on('next_dilema', ({ dilema, roomInfo, playerScores }: { dilema: Dilema; roomInfo: any; playerScores: Player[] }) => {
       setShowAnalysis(false);
       setSelectedOption(null);
-      setCurrentDilema(data.dilema);
-      setRoomInfo(data.roomInfo);
-      setPlayerScores(data.playerScores);
+      setCurrentDilema(dilema);
+      setRoomInfo(roomInfo);
+      setPlayerScores(playerScores);
     });
 
-    newSocket.on('game_finished', (data: { ranking: Player[] }) => {
-      setFinalRanking(data.ranking);
+    newSocket.on('game_finished', ({ ranking }: { ranking: Player[] }) => {
+      setFinalRanking(ranking);
       setScreen('end');
-    });
-
-    newSocket.on('room_created', (data: { roomId: string }) => {
-      // O backend já colocou o jogador na sala e emitiu rooms_updated
-      // O frontend precisa apenas mudar para a tela de lobby
-      setScreen('lobby');
-      console.log(`Sala criada com sucesso. ID: ${data.roomId}`);
     });
 
     newSocket.on('error', (error: any) => {
@@ -127,7 +73,6 @@ const App = () => {
     };
   }, []);
 
-  // Splash screen timer
   useEffect(() => {
     if (screen === 'splash') {
       const timer = setTimeout(() => {
@@ -137,9 +82,7 @@ const App = () => {
     }
   }, [screen]);
 
-  // Render Splash
-  const renderSplash = () => {
-    return (
+  const renderSplash = () => (
     <div style={{
       width: '100%',
       height: '100vh',
@@ -152,10 +95,7 @@ const App = () => {
       position: 'relative',
       overflow: 'hidden',
     }}>
-      <div style={{
-        textAlign: 'center',
-        animation: 'fadeInScale 2s ease-in-out',
-      }}>
+      <div style={{ textAlign: 'center', animation: 'fadeInScale 2s ease-in-out' }}>
         <h1 style={{
           fontSize: '64px',
           fontWeight: 'bold',
@@ -169,33 +109,20 @@ const App = () => {
           Caminho dos Valores
         </h1>
       </div>
-
       <style>{`
         @keyframes fadeInScale {
-          from {
-            opacity: 0;
-            transform: scale(0.8);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
+          from { opacity: 0; transform: scale(0.8); }
+          to { opacity: 1; transform: scale(1); }
         }
         @keyframes glow {
-          0%, 100% {
-            textShadow: 0 0 30px rgba(255, 217, 61, 0.8), 0 0 60px rgba(108, 99, 255, 0.6);
-          }
-          50% {
-            textShadow: 0 0 50px rgba(255, 217, 61, 1), 0 0 80px rgba(108, 99, 255, 0.8);
-          }
+          0%, 100% { textShadow: 0 0 30px rgba(255, 217, 61, 0.8), 0 0 60px rgba(108, 99, 255, 0.6); }
+          50% { textShadow: 0 0 50px rgba(255, 217, 61, 1), 0 0 80px rgba(108, 99, 255, 0.8); }
         }
       `}</style>
     </div>
   );
 
-  // Render Menu
-  const renderMenu = () => {
-    return (
+  const renderMenu = () => (
     <div style={{
       width: '100%',
       height: '100vh',
@@ -216,7 +143,6 @@ const App = () => {
         bottom: 0,
         backgroundColor: 'rgba(45, 27, 105, 0.3)',
       }} />
-
       <div style={{
         position: 'relative',
         zIndex: 10,
@@ -236,7 +162,6 @@ const App = () => {
         }}>
           Caminho dos Valores
         </h1>
-
         <input
           type="text"
           placeholder="Digite seu nome"
@@ -255,16 +180,92 @@ const App = () => {
             boxSizing: 'border-box',
           }}
         />
-
-          <div style={{
-            marginBottom: '40px',
-            color: '#FFD93D',
-            fontSize: '18px',
-            textAlign: 'center',
-          }}>
-            O Caminho dos Valores é um jogo de dilemas éticos e morais.
+        <div style={{ marginBottom: '30px', display: 'flex', flexDirection: 'column', gap: '15px', textAlign: 'left' }}>
+          <label style={{ color: '#FFD93D', fontSize: '16px' }}>Máximo de Jogadores:</label>
+          <input
+            type="number"
+            min="2"
+            max="8"
+            value={maxPlayers}
+            onChange={(e) => setMaxPlayers(parseInt(e.target.value) || 2)}
+            style={{
+              padding: '10px 15px',
+              fontSize: '16px',
+              borderRadius: '8px',
+              border: '2px solid #FFD93D',
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              color: '#2D1B69',
+            }}
+          />
+          <label style={{ color: '#FFD93D', fontSize: '16px' }}>Dificuldade:</label>
+          <select
+            value={difficulty}
+            onChange={(e) => setDifficulty(e.target.value)}
+            style={{
+              padding: '10px 15px',
+              fontSize: '16px',
+              borderRadius: '8px',
+              border: '2px solid #FFD93D',
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              color: '#2D1B69',
+            }}
+          >
+            <option value="fácil">Fácil</option>
+            <option value="médio">Médio</option>
+            <option value="difícil">Difícil</option>
+          </select>
+          <label style={{ color: '#FFD93D', fontSize: '16px' }}>Modo de Jogo:</label>
+          <select
+            value={gameMode}
+            onChange={(e) => {
+              const mode = e.target.value as 'Padrão' | 'Rápido' | 'Personalizado';
+              setGameMode(mode);
+              if (mode === 'Padrão') setTotalRounds(5);
+              if (mode === 'Rápido') setTotalRounds(3);
+            }}
+            style={{
+              padding: '10px 15px',
+              fontSize: '16px',
+              borderRadius: '8px',
+              border: '2px solid #FFD93D',
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              color: '#2D1B69',
+            }}
+          >
+            <option value="Padrão">Padrão (5 Rodadas)</option>
+            <option value="Rápido">Rápido (3 Rodadas)</option>
+            <option value="Personalizado">Personalizado</option>
+          </select>
+          {gameMode === 'Personalizado' && (
+            <>
+              <label style={{ color: '#FFD93D', fontSize: '16px' }}>Total de Rodadas:</label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                value={totalRounds}
+                onChange={(e) => setTotalRounds(parseInt(e.target.value) || 1)}
+                style={{
+                  padding: '10px 15px',
+                  fontSize: '16px',
+                  borderRadius: '8px',
+                  border: '2px solid #FFD93D',
+                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  color: '#2D1B69',
+                }}
+              />
+            </>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <label style={{ color: '#FFD93D', fontSize: '16px' }}>Sala Privada:</label>
+            <input
+              type="checkbox"
+              checked={isPrivate}
+              onChange={(e) => setIsPrivate(e.target.checked)}
+              style={{ width: '20px', height: '20px' }}
+            />
           </div>
-
+        </div>
         <div style={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
@@ -273,8 +274,16 @@ const App = () => {
           <button
             onClick={() => {
               if (playerName.trim() && socket) {
+                const rounds = gameMode === 'Padrão' ? 5 : gameMode === 'Rápido' ? 3 : totalRounds;
                 socket.emit('register_player', { name: playerName });
-                socket.emit('create_room', { playerName, maxPlayers: 4, difficulty: 'médio' });
+                socket.emit('create_room', { 
+                  playerName, 
+                  maxPlayers, 
+                  difficulty,
+                  gameMode, 
+                  totalRounds: rounds, 
+                  isPrivate 
+                });
               }
             }}
             style={{
@@ -292,7 +301,6 @@ const App = () => {
           >
             Criar Sala
           </button>
-
           <button
             onClick={() => setScreen('lobby')}
             style={{
@@ -315,9 +323,7 @@ const App = () => {
     </div>
   );
 
-  // Render Lobby
-  const renderLobby = () => {
-    return (
+  const renderLobby = () => (
     <div style={{
       width: '100%',
       height: '100vh',
@@ -333,24 +339,24 @@ const App = () => {
         color: '#FFD93D',
         fontSize: '40px',
         marginBottom: '30px',
+        textAlign: 'center',
       }}>
-        Salas Disponíveis
+        Entrar em uma Sala
       </h1>
-
       <div style={{
         display: 'flex',
         flexDirection: 'column',
         gap: '20px',
         width: '100%',
-        maxWidth: '1000px',
+        maxWidth: '400px',
         marginBottom: '30px',
       }}>
         <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
           <input
             type="text"
-            placeholder="Código da Sala"
+            placeholder="Digite o Código da Sala (Ex: ABCD)"
             value={roomIdToJoin}
-            onChange={(e) => setRoomIdToJoin(e.target.value)}
+            onChange={(e) => setRoomIdToJoin(e.target.value.toUpperCase())}
             style={{
               flexGrow: 1,
               padding: '15px 20px',
@@ -365,7 +371,7 @@ const App = () => {
           />
           <button
             onClick={() => {
-              if (playerName.trim() && socket && roomIdToJoin.trim()) {
+              if (roomIdToJoin.trim() && playerName.trim() && socket) {
                 socket.emit('register_player', { name: playerName });
                 socket.emit('join_room', { roomId: roomIdToJoin, playerName });
               }
@@ -383,77 +389,158 @@ const App = () => {
               transition: 'all 0.3s ease',
             }}
           >
-            Entrar por Código
+            Entrar
           </button>
         </div>
-
-        <h2 style={{ color: '#FFD93D', marginBottom: '10px', textAlign: 'center' }}>Salas Abertas</h2>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-          gap: '20px',
-          width: '100%',
-        }}>
-          {rooms.map((room) => (
-            <div key={room.id} style={{
-            backgroundColor: 'rgba(108, 99, 255, 0.2)',
-            padding: '20px',
-            borderRadius: '10px',
-            border: '2px solid #FFD93D',
-            cursor: 'pointer',
-          }}>
-            <h3 style={{ color: '#FFD93D', marginBottom: '10px' }}>{room.name}</h3>
-            <p style={{ color: '#FFFFFF', marginBottom: '5px' }}>
-              Jogadores: {room.players.length}/{room.maxPlayers}
-            </p>
-            <p style={{ color: '#FFFFFF', marginBottom: '15px' }}>
-              Dificuldade: {room.difficulty}
-            </p>
-            <button
-              onClick={() => {
-                if (playerName.trim() && socket) {
-                  socket.emit('register_player', { name: playerName });
-                  socket.emit('join_room', { roomId: room.id, playerName });
-                  setCurrentRoom(room);
-                }
-              }}
-              style={{
-                width: '100%',
-                padding: '10px',
-                backgroundColor: '#FFD93D',
-                color: '#2D1B69',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-              }}
-            >
-              Entrar
-            </button>
-          </div>
-        ))}
       </div>
-
       <button
         onClick={() => setScreen('menu')}
         style={{
-          padding: '10px 30px',
-          backgroundColor: '#FF6B9D',
-          color: 'white',
+          padding: '15px 30px',
+          backgroundColor: '#FFD93D',
+          color: '#2D1B69',
           border: 'none',
           borderRadius: '8px',
           cursor: 'pointer',
-          fontSize: '16px',
+          fontSize: '18px',
+          fontWeight: 'bold',
+          marginTop: '20px',
         }}
       >
-        Voltar
+        Voltar ao Menu
       </button>
     </div>
   );
 
-  // Render Game
-  const renderGame = () => {
+  const renderRoomLobby = () => {
+    if (!currentRoom) {
+      return (
+        <div style={{ color: '#FFFFFF', textAlign: 'center', padding: '50px' }}>
+          Carregando informações da sala...
+          <button onClick={() => setScreen('menu')}>Voltar ao Menu</button>
+        </div>
+      );
+    }
+
+    const isHost = socket?.id === currentRoom.creatorId;
+
     return (
+      <div style={{
+        width: '100%',
+        minHeight: '100vh',
+        backgroundColor: '#2D1B69',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        padding: '40px',
+        fontFamily: 'Poppins, sans-serif',
+      }}>
+        <h1 style={{ color: '#FFD93D', fontSize: '40px', marginBottom: '10px' }}>
+          Sala: {currentRoom.name}
+        </h1>
+        <div style={{
+          backgroundColor: 'rgba(108, 99, 255, 0.2)',
+          padding: '15px 30px',
+          borderRadius: '10px',
+          marginBottom: '30px',
+          border: '2px solid #FFD93D',
+          textAlign: 'center',
+        }}>
+          <p style={{ color: '#FFFFFF', fontSize: '18px', margin: '0' }}>
+            Código da Sala: <strong style={{ fontSize: '24px', color: '#FFD93D' }}>{currentRoom.id}</strong>
+          </p>
+          <p style={{ color: '#DDD', fontSize: '14px', margin: '5px 0 0 0' }}>
+            Compartilhe este código para que outros jogadores entrem.
+          </p>
+        </div>
+        <div style={{
+          maxWidth: '600px',
+          width: '100%',
+          marginBottom: '30px',
+          textAlign: 'left',
+        }}>
+          <h2 style={{ color: '#FFFFFF', fontSize: '24px', marginBottom: '15px' }}>
+            Jogadores ({currentRoom.players.length}/{currentRoom.maxPlayers})
+          </h2>
+          <div style={{
+            maxHeight: '300px',
+            overflowY: 'auto',
+            padding: '10px',
+            border: '1px solid #6C63FF',
+            borderRadius: '10px',
+            backgroundColor: 'rgba(0, 0, 0, 0.1)',
+          }}>
+            {currentRoom.players.map((player, idx) => (
+              <div key={player.id} style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '10px',
+                marginBottom: '5px',
+                backgroundColor: player.id === socket?.id ? 'rgba(255, 217, 61, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+                borderRadius: '5px',
+              }}>
+                <span style={{ color: '#FFFFFF', fontWeight: 'bold' }}>
+                  {idx + 1}. {player.name} {player.id === socket?.id ? '(Você)' : ''}
+                </span>
+                {player.id === currentRoom.creatorId && (
+                  <span style={{ color: '#FFD93D', fontWeight: 'bold' }}>HOST</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+        {isHost && (
+          <button
+            onClick={() => {
+              if (socket && currentRoom) {
+                socket.emit('start_game', { roomId: currentRoom.id });
+              }
+            }}
+            style={{
+              padding: '15px 40px',
+              fontSize: '20px',
+              fontWeight: 'bold',
+              backgroundColor: '#FFD93D',
+              color: '#2D1B69',
+              border: 'none',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              marginTop: '20px',
+            }}
+          >
+            Começar Jogo
+          </button>
+        )}
+        {!isHost && (
+          <p style={{ color: '#FFFFFF', fontSize: '18px', marginTop: '20px' }}>
+            Aguardando o Host ({currentRoom.players.find(p => p.id === currentRoom.creatorId)?.name}) iniciar o jogo...
+          </p>
+        )}
+        <button
+          onClick={() => {
+            setScreen('menu');
+            setCurrentRoom(null);
+          }}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: '#6C63FF',
+            color: '#FFFFFF',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontSize: '16px',
+            marginTop: '30px',
+          }}
+        >
+          Sair da Sala
+        </button>
+      </div>
+    );
+  };
+
+  const renderGame = () => (
     <div style={{
       width: '100%',
       minHeight: '100vh',
@@ -465,40 +552,31 @@ const App = () => {
       padding: '40px',
       fontFamily: 'Poppins, sans-serif',
     }}>
+      <h1 style={{
+        color: '#FFD93D',
+        fontSize: '40px',
+        marginBottom: '30px',
+        textAlign: 'center',
+      }}>
+        {currentDilema?.title || 'Carregando Dilema...'}
+      </h1>
       {currentDilema && !showAnalysis && (
         <div style={{
-          maxWidth: '800px',
+          maxWidth: '900px',
           width: '100%',
+          marginBottom: '30px',
         }}>
-          <div style={{
-            marginBottom: '20px',
-            color: '#FFD93D',
-            fontSize: '14px',
-          }}>
-            Dilema {roomInfo?.currentDilemaIndex} de {roomInfo?.totalDilemas}
-          </div>
-
-          <h1 style={{
-            color: '#FFD93D',
-            fontSize: '32px',
-            marginBottom: '20px',
-            textAlign: 'center',
-          }}>
-            {currentDilema.title}
-          </h1>
-
           <div style={{
             backgroundColor: 'rgba(108, 99, 255, 0.2)',
             padding: '20px',
             borderRadius: '10px',
-            marginBottom: '30px',
+            marginBottom: '20px',
             border: '1px solid #FFD93D',
           }}>
             <p style={{
               color: '#FFFFFF',
               fontSize: '16px',
               lineHeight: '1.6',
-              marginBottom: '15px',
             }}>
               {currentDilema.description}
             </p>
@@ -510,7 +588,6 @@ const App = () => {
               {currentDilema.context}
             </p>
           </div>
-
           <div style={{
             display: 'grid',
             gridTemplateColumns: '1fr',
@@ -549,13 +626,10 @@ const App = () => {
           </div>
         </div>
       )}
-
       {showAnalysis && selectedOption && (
         <div style={{
           maxWidth: '900px',
           width: '100%',
-          maxHeight: '90vh',
-          overflow: 'auto',
         }}>
           <h2 style={{
             color: '#FFD93D',
@@ -564,7 +638,6 @@ const App = () => {
           }}>
             Análise da Sua Resposta
           </h2>
-
           <div style={{
             backgroundColor: 'rgba(108, 99, 255, 0.2)',
             padding: '20px',
@@ -580,218 +653,21 @@ const App = () => {
               {selectedOption.feedback}
             </p>
           </div>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '20px',
-            marginBottom: '20px',
-          }}>
-            <div style={{
-              backgroundColor: 'rgba(108, 99, 255, 0.2)',
-              padding: '15px',
-              borderRadius: '10px',
-              border: '1px solid #FFD93D',
-            }}>
-              <h3 style={{ color: '#FFD93D', marginBottom: '10px' }}>Análise Ética</h3>
-              {selectedOption.ethicalAnalysis.map((analysis, idx) => (
-                <div key={idx} style={{ marginBottom: '10px' }}>
-                  <p style={{ color: '#FFFFFF', margin: '5px 0' }}>
-                    <strong>{analysis.framework}</strong>: {analysis.score}/100
-                  </p>
-                  <p style={{ color: '#DDD', fontSize: '12px', margin: '0' }}>
-                    {analysis.explanation}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div style={{
-              backgroundColor: 'rgba(108, 99, 255, 0.2)',
-              padding: '15px',
-              borderRadius: '10px',
-              border: '1px solid #FFD93D',
-            }}>
-              <h3 style={{ color: '#FFD93D', marginBottom: '10px' }}>Valores Corporativos</h3>
-              {selectedOption.valueAnalysis.slice(0, 5).map((value, idx) => (
-                <div key={idx} style={{ marginBottom: '8px' }}>
-                  <p style={{ color: '#FFFFFF', margin: '3px 0', fontSize: '14px' }}>
-                    <strong>{value.value}</strong>: {value.alignment > 0 ? '+' : ''}{value.alignment}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div style={{
-            textAlign: 'center',
-            color: '#FFD93D',
-            fontSize: '18px',
-            marginBottom: '20px',
-          }}>
-            Pontuação: <strong>{selectedOption.overallScore}</strong>
-          </div>
-
-          {playerScores.length > 0 && (
-            <div style={{
-              backgroundColor: 'rgba(108, 99, 255, 0.2)',
-              padding: '15px',
-              borderRadius: '10px',
-              border: '1px solid #FFD93D',
-              marginBottom: '20px',
-            }}>
-              <h3 style={{ color: '#FFD93D', marginBottom: '10px' }}>Ranking Atual</h3>
-              {playerScores.map((player, idx) => (
-                <div key={idx} style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  color: '#FFFFFF',
-                  marginBottom: '8px',
-                  padding: '8px',
-                  backgroundColor: 'rgba(255, 217, 61, 0.1)',
-                  borderRadius: '5px',
-                }}>
-                  <span>{idx + 1}. {player.name}</span>
-                  <span>{player.score} pts</span>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
     </div>
   );
 
-  // Render End
-  const renderEnd = () => {
-    return (
-    <div style={{
-      width: '100%',
-      minHeight: '100vh',
-      backgroundColor: '#2D1B69',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '40px',
-      fontFamily: 'Poppins, sans-serif',
-      overflow: 'auto',
-    }}>
-      <h1 style={{
-        color: '#FFD93D',
-        fontSize: '48px',
-        marginBottom: '30px',
-      }}>
-        🏆 Jogo Finalizado!
-      </h1>
-
-      <div style={{
-        maxWidth: '600px',
-        width: '100%',
-        marginBottom: '30px',
-      }}>
-        <h2 style={{
-          color: '#FFD93D',
-          marginBottom: '20px',
-          textAlign: 'center',
-        }}>
-          Ranking Final
-        </h2>
-
-        {finalRanking.map((player, idx) => (
-          <div key={idx} style={{
-            backgroundColor: idx === 0 ? 'rgba(255, 217, 61, 0.2)' : 'rgba(108, 99, 255, 0.2)',
-            padding: '20px',
-            marginBottom: '15px',
-            borderRadius: '10px',
-            border: `2px solid ${idx === 0 ? '#FFD93D' : '#6C63FF'}`,
-          }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '10px',
-            }}>
-              <h3 style={{ color: '#FFD93D', margin: 0 }}>
-                {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`} {player.name}
-              </h3>
-              <span style={{ color: '#FFD93D', fontSize: '24px', fontWeight: 'bold' }}>
-                {player.score} pts
-              </span>
-            </div>
-
-            {player.ethicalProfile && (
-              <div style={{
-                backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                padding: '10px',
-                borderRadius: '5px',
-                fontSize: '12px',
-              }}>
-                <p style={{ color: '#DDD', margin: '5px 0' }}>
-                  <strong>Perfil Ético:</strong> {player.ethicalProfile.dominantFramework}
-                </p>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '5px',
-                  color: '#DDD',
-                }}>
-                  <span>Utilitarismo: {player.ethicalProfile.utilitarismo}</span>
-                  <span>Deontologia: {player.ethicalProfile.deontologia}</span>
-                  <span>Virtude: {player.ethicalProfile.virtude}</span>
-                  <span>Consequencialismo: {player.ethicalProfile.consequencialismo}</span>
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <button
-        onClick={() => {
-          setScreen('menu');
-          setPlayerName('');
-          setCurrentDilema(null);
-          setSelectedOption(null);
-          setShowAnalysis(false);
-          setPlayerScores([]);
-          setFinalRanking([]);
-        }}
-        style={{
-          padding: '15px 30px',
-          backgroundColor: '#FFD93D',
-          color: '#2D1B69',
-          border: 'none',
-          borderRadius: '8px',
-          cursor: 'pointer',
-          fontSize: '18px',
-          fontWeight: 'bold',
-        }}
-      >
-        Voltar ao Menu
-      </button>
+  return (
+    <div>
+      {screen === 'splash' && renderSplash()}
+      {screen === 'menu' && renderMenu()}
+      {screen === 'lobby' && renderLobby()}
+      {screen === 'room_lobby' && renderRoomLobby()}
+      {screen === 'game' && renderGame()}
+      {screen === 'end' && <div>Fim do Jogo</div>}
     </div>
   );
-
-  // Main render
-  const renderScreen = () => {
-    switch (screen) {
-      case 'splash':
-        return renderSplash();
-      case 'menu':
-        return renderMenu();
-      case 'lobby':
-        return renderLobby();
-      case 'game':
-        return renderGame();
-      case 'end':
-        return renderEnd();
-      default:
-        return renderMenu();
-    }
-  };
-
-  return renderScreen();
 };
 
 export default App;

@@ -2,9 +2,9 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import cors from 'cors';
-import { RoomManager } from './services/RoomManager.js';
-import { DilemaManager } from './services/DilemaManager.js';
-import { setupSocketHandlers } from './socketHandlers.js';
+import { RoomManager } from './services/RoomManager';
+import { DilemaManager } from './services/DilemaManager';
+import { setupSocketHandlers } from './socketHandlers';
 
 const app = express();
 const httpServer = createServer(app);
@@ -21,7 +21,6 @@ app.use(express.json());
 const dilemaManager = new DilemaManager();
 const roomManager = new RoomManager(io, dilemaManager);
 
-// HTTP Routes
 app.get('/health', (req, res) => {
   res.status(200).send('OK');
 });
@@ -30,10 +29,10 @@ app.get('/dilemas', (req, res) => {
   res.json(dilemaManager.getAllDilemas());
 });
 
-// Socket.io events
+// Configurando os manipuladores de eventos do Socket.io
 setupSocketHandlers(io, roomManager);
 
-// Start server
+// Iniciando o servidor
 const PORT = process.env.PORT || 3333;
 httpServer.listen(PORT, () => {
   console.log(`🚀 Backend rodando em http://localhost:${PORT}`);

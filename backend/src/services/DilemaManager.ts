@@ -1,5 +1,6 @@
-import { Dilema } from '../types/types.js';
-import { ALL_DILEMAS } from '../data/dilemas.js';
+
+import { Dilema } from '../types/types';
+import { ALL_DILEMAS } from '../data/dilemas';
 
 export class DilemaManager {
   private allDilemas: Dilema[] = ALL_DILEMAS;

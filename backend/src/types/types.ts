@@ -1,5 +1,4 @@
-import { Socket } from 'socket.io';
-
+import { Socket } from 'socket.io'; // Adicione esta linhaexport interface EthicalProfile {  utilitarismo: number;  deontologia: number;  virtude: number;  consequencialismo: number;  relativismo: number;  dominantFramework: string;}
 export interface EthicalProfile {
   utilitarismo: number;
   deontologia: number;
@@ -7,6 +6,18 @@ export interface EthicalProfile {
   consequencialismo: number;
   relativismo: number;
   dominantFramework: string;
+}
+
+export interface EthicalAnalysis {
+  framework: string; // Nome do framework ético
+  score: number;     // Pontuação atribuída
+  explanation: string; // Explicação da pontuação
+}
+
+export interface ValueAnalysis {
+  value: string;
+  alignment: number;
+  explanation: string; // Explicação da análise de valor
 }
 
 export interface PlayerAnswer {
@@ -27,16 +38,18 @@ export interface Option {
   id: string;
   text: string;
   overallScore: number;
-  ethicalAnalysis: {
-    framework: string;
-    score: number;
-  }[];
+  feedback?: string; // Adicionada
+  ethicalAnalysis: EthicalAnalysis[]; // Atualizado
+  valueAnalysis: ValueAnalysis[]; // Atualizado
+  culturalImpact: string;
 }
 
 export interface Dilema {
   id: string;
   title: string;
   description: string;
+  context: string; // Adicionada
+  category: string; // Adicionada
   options: Option[];
 }
 
@@ -51,6 +64,9 @@ export interface Room {
   currentDilemaIndex: number;
   dilemas: Dilema[];
   playerAnswers: Map<string, Map<string, string>>; // Map<playerId, Map<dilemaId, optionId>>
+  gameMode?: 'Padrão' | 'Rápido' | 'Personalizado'; // Adicionada
+  totalRounds?: number; // Adicionada
+  isPrivate?: boolean; // Adicionada
 }
 
 // Tipos para eventos de Socket.IO
@@ -117,3 +133,10 @@ export interface ErrorResponse {
 }
 
 export type SocketHandler = (socket: Socket) => void;
+
+export interface PlayerRanking {
+  id: string;
+  name: string;
+  score: number;
+  ethicalProfile?: EthicalProfile;
+}

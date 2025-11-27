@@ -1,14 +1,33 @@
-import { Socket } from 'socket.io';
+import { Server as SocketIOServer, Socket } from 'socket.io'; 
 import { RoomManager } from './services/RoomManager.js';
-import {
-  CreateRoomData,
-  JoinRoomData,
-  StartGameData,
-  AnswerDilemaData,
-  ErrorResponse,
-} from './types/types.js';
 
-export const setupSocketHandlers = (io: Socket, roomManager: RoomManager) => {
+// Definições de tipos
+export interface CreateRoomData {
+  playerName: string;
+  maxPlayers: number;
+  difficulty: string;
+}
+
+export interface JoinRoomData {
+  roomId: string;
+  playerName: string;
+}
+
+export interface StartGameData {
+  roomId: string;
+}
+
+export interface AnswerDilemaData {
+  roomId: string;
+  dilemaId: string;
+  optionId: string;
+}
+
+export interface ErrorResponse {
+  message: string;
+}
+
+export const setupSocketHandlers = (io: SocketIOServer, roomManager: RoomManager) => {
   io.on('connection', (socket: Socket) => {
     console.log(`✅ Usuário conectado: ${socket.id}`);
 
@@ -16,10 +35,7 @@ export const setupSocketHandlers = (io: Socket, roomManager: RoomManager) => {
     socket.emit('rooms_updated', roomManager.getRoomsArray());
 
     // Registrar jogador
-    socket.on('register_player', (data: { name: string }) => {
-      roomManager.registerPlayer(socket.id, data.name);
-      console.log(`📝 Jogador registrado: ${data.name}`);
-    });
+  socket.on('register_player', ({ name: string }) => {  try {    const player = roomManager.registerPlayer(socket.id, data.name);    console.log(`📝 Jogador registrado: ${player.name}`);  } catch (error) {    const errorMessage: ErrorResponse = { message: error instanceof Error ? error.message : 'Erro desconhecido ao registrar jogador.' };    socket.emit('error', errorMessage);    console.error(`❌ Erro ao registrar jogador: ${errorMessage.message}`);  }});
 
     // Criar sala
     socket.on('create_room', (data: CreateRoomData) => {
