@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "description": "Backend for Caminho dos Valores game with ethical analysis",
   "main": "index.ts",
-  "scripts": {
-    "start": "ts-node index.ts",
-    "dev": "ts-node-dev index.ts",
-    "build": "tsc"
+ "scripts": {
+    "build": "tsc",
+    "start": "npm run build && node dist/index.js",
+    "dev": "npx ts-node-dev index.ts"
   },
   "keywords": [
     "socket.io",
