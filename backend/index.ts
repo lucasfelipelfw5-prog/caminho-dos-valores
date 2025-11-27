@@ -304,7 +304,13 @@ function generateId(): string {
 }
 
 function calculateEthicalProfile(player: Player): void {
-  const profile = {
+  const profile: {
+    utilitarismo: number;
+    deontologia: number;
+    virtude: number;
+    consequencialismo: number;
+    relativismo: number;
+  } = {
     utilitarismo: 0,
     deontologia: 0,
     virtude: 0,
@@ -331,8 +337,8 @@ function calculateEthicalProfile(player: Player): void {
   });
 
   if (totalAnswers > 0) {
-    Object.keys(profile).forEach((key) => {
-      profile[key as keyof typeof profile] = Math.round(profile[key as keyof typeof profile] / totalAnswers);
+    (Object.keys(profile) as Array<keyof typeof profile>).forEach((key) => {
+      profile[key] = Math.round(profile[key] / totalAnswers);
     });
   }
 
@@ -340,7 +346,7 @@ function calculateEthicalProfile(player: Player): void {
   player.ethicalProfile = {
     ...profile,
     dominantFramework: frameworks[0][0].charAt(0).toUpperCase() + frameworks[0][0].slice(1),
-  };
+  } as Player['ethicalProfile'];
 }
 
 // Socket.io events
