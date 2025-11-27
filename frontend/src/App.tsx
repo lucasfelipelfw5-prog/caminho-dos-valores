@@ -63,6 +63,7 @@ const App: React.FC = () => {
   const [playerName, setPlayerName] = useState('');
   const [rooms, setRooms] = useState<Room[]>([]);
   const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
+  const [roomIdToJoin, setRoomIdToJoin] = useState('');
   const [currentDilema, setCurrentDilema] = useState<Dilema | null>(null);
   const [selectedOption, setSelectedOption] = useState<Option | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
@@ -246,37 +247,14 @@ const App: React.FC = () => {
           }}
         />
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: '20px',
-          marginBottom: '40px',
-        }}>
-          {[
-            { src: '/icon_etica.png', label: 'Ética' },
-            { src: '/icon_valores.png', label: 'Valores' },
-            { src: '/icon_cultura.png', label: 'Cultura' },
-          ].map((icon, idx) => (
-            <div key={idx} style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '10px',
-            }}>
-              <img src={icon.src} alt={icon.label} style={{
-                width: '80px',
-                height: '80px',
-                objectFit: 'contain',
-              }} />
-              <span style={{
-                color: '#FFD93D',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                fontFamily: 'Poppins, sans-serif',
-              }}>{icon.label}</span>
-            </div>
-          ))}
-        </div>
+          <div style={{
+            marginBottom: '40px',
+            color: '#FFD93D',
+            fontSize: '18px',
+            textAlign: 'center',
+          }}>
+            O Caminho dos Valores é um jogo de dilemas éticos e morais.
+          </div>
 
         <div style={{
           display: 'grid',
@@ -286,6 +264,7 @@ const App: React.FC = () => {
           <button
             onClick={() => {
               if (playerName.trim() && socket) {
+                socket.emit('register_player', { name: playerName });
                 socket.emit('create_room', { playerName, maxPlayers: 4, difficulty: 'médio' });
               }
             }}
@@ -349,15 +328,64 @@ const App: React.FC = () => {
       </h1>
 
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+        display: 'flex',
+        flexDirection: 'column',
         gap: '20px',
         width: '100%',
         maxWidth: '1000px',
         marginBottom: '30px',
       }}>
-        {rooms.map((room) => (
-          <div key={room.id} style={{
+        <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+          <input
+            type="text"
+            placeholder="Código da Sala"
+            value={roomIdToJoin}
+            onChange={(e) => setRoomIdToJoin(e.target.value)}
+            style={{
+              flexGrow: 1,
+              padding: '15px 20px',
+              fontSize: '18px',
+              fontFamily: 'Poppins, sans-serif',
+              border: '2px solid #FFD93D',
+              borderRadius: '10px',
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              color: '#2D1B69',
+              boxSizing: 'border-box',
+            }}
+          />
+          <button
+            onClick={() => {
+              if (playerName.trim() && socket && roomIdToJoin.trim()) {
+                socket.emit('register_player', { name: playerName });
+                socket.emit('join_room', { roomId: roomIdToJoin, playerName });
+              }
+            }}
+            style={{
+              padding: '15px 30px',
+              fontSize: '18px',
+              fontWeight: 'bold',
+              fontFamily: 'Poppins, sans-serif',
+              backgroundColor: '#6C63FF',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+            }}
+          >
+            Entrar por Código
+          </button>
+        </div>
+
+        <h2 style={{ color: '#FFD93D', marginBottom: '10px', textAlign: 'center' }}>Salas Abertas</h2>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+          gap: '20px',
+          width: '100%',
+        }}>
+          {rooms.map((room) => (
+            <div key={room.id} style={{
             backgroundColor: 'rgba(108, 99, 255, 0.2)',
             padding: '20px',
             borderRadius: '10px',
@@ -374,6 +402,7 @@ const App: React.FC = () => {
             <button
               onClick={() => {
                 if (playerName.trim() && socket) {
+                  socket.emit('register_player', { name: playerName });
                   socket.emit('join_room', { roomId: room.id, playerName });
                   setCurrentRoom(room);
                 }
