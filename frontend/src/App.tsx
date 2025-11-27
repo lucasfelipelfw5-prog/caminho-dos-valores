@@ -453,7 +453,6 @@ const App = () => {
       justifyContent: 'center',
       padding: '40px',
       fontFamily: 'Poppins, sans-serif',
-      overflow: 'auto',
     }}>
       {currentDilema && !showAnalysis && (
         <div style={{
