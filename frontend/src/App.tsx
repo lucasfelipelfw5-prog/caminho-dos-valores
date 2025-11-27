@@ -57,7 +57,7 @@ interface Room {
   status: string;
 }
 
-const App: React.FC = () => {
+const App = () => {
   const [screen, setScreen] = useState<Screen>('splash');
   const [socket, setSocket] = useState<Socket | null>(null);
   const [playerName, setPlayerName] = useState('');
@@ -763,20 +763,24 @@ const App: React.FC = () => {
   );
 
   // Main render
-  switch (screen) {
-    case 'splash':
-      return renderSplash();
-    case 'menu':
-      return renderMenu();
-    case 'lobby':
-      return renderLobby();
-    case 'game':
-      return renderGame();
-    case 'end':
-      return renderEnd();
-    default:
-      return renderMenu();
-  }
+  const renderScreen = () => {
+    switch (screen) {
+      case 'splash':
+        return renderSplash();
+      case 'menu':
+        return renderMenu();
+      case 'lobby':
+        return renderLobby();
+      case 'game':
+        return renderGame();
+      case 'end':
+        return renderEnd();
+      default:
+        return renderMenu();
+    }
+  };
+
+  return renderScreen();
 };
 
 export default App;
