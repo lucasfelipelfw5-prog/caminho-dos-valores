@@ -108,6 +108,13 @@ const App = () => {
       setScreen('end');
     });
 
+    newSocket.on('room_created', (data: { roomId: string }) => {
+      // O backend já colocou o jogador na sala e emitiu rooms_updated
+      // O frontend precisa apenas mudar para a tela de lobby
+      setScreen('lobby');
+      console.log(`Sala criada com sucesso. ID: ${data.roomId}`);
+    });
+
     newSocket.on('error', (error: any) => {
       console.error('Erro:', error.message);
       alert(error.message);
@@ -131,7 +138,8 @@ const App = () => {
   }, [screen]);
 
   // Render Splash
-  const renderSplash = () => (
+  const renderSplash = () => {
+    return (
     <div style={{
       width: '100%',
       height: '100vh',
@@ -186,7 +194,8 @@ const App = () => {
   );
 
   // Render Menu
-  const renderMenu = () => (
+  const renderMenu = () => {
+    return (
     <div style={{
       width: '100%',
       height: '100vh',
@@ -307,7 +316,8 @@ const App = () => {
   );
 
   // Render Lobby
-  const renderLobby = () => (
+  const renderLobby = () => {
+    return (
     <div style={{
       width: '100%',
       height: '100vh',
@@ -442,7 +452,8 @@ const App = () => {
   );
 
   // Render Game
-  const renderGame = () => (
+  const renderGame = () => {
+    return (
     <div style={{
       width: '100%',
       minHeight: '100vh',
@@ -652,7 +663,8 @@ const App = () => {
   );
 
   // Render End
-  const renderEnd = () => (
+  const renderEnd = () => {
+    return (
     <div style={{
       width: '100%',
       minHeight: '100vh',
